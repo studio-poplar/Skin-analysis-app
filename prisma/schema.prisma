@@ -1,0 +1,256 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum QuestionType {
+  single_select
+  multi_select
+}
+
+model Product {
+  productId    Int      @id @default(autoincrement()) @map("product_id")
+  productCode  String   @unique @map("product_code")
+  nameJp       String   @map("name_jp")
+  nameUsRef    String?  @map("name_us_ref")
+  category     String
+  priceJpy     Int      @map("price_jpy")
+  productUrl   String   @map("product_url")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  clinicalData ProductClinicalData?
+  concernMaps  ProductConcernMap[]
+  optionMaps   OptionProductMap[]
+
+  @@map("products")
+}
+
+model ProductClinicalData {
+  dataId             Int       @id @default(autoincrement()) @map("data_id")
+  productId          Int       @unique @map("product_id")
+  summaryText        String    @map("summary_text")
+  hasAntiWrinkleTest Boolean   @default(false) @map("has_anti_wrinkle_test")
+  sourceUrl          String?   @map("source_url")
+  lastVerifiedAt     DateTime? @map("last_verified_at")
+
+  product Product @relation(fields: [productId], references: [productId], onDelete: Cascade)
+
+  @@map("product_clinical_data")
+}
+
+// サイト構成変更(2026-08-05)で追加: 気になること(③)を「ジャンル」として大分類し、
+// 症状カテゴリ(ConcernCategory、④の深掘り選択肢)をジャンルの下にぶら下げる2階層構成にした。
+model Genre {
+  genreId   String  @id @map("genre_id")
+  name      String
+  draftName String? @map("draft_name")
+  sortOrder Int     @map("sort_order")
+  isActive  Boolean @default(true) @map("is_active")
+
+  categories ConcernCategory[]
+
+  @@map("genres")
+}
+
+model ConcernCategory {
+  categoryId  String  @id @map("category_id")
+  genreId     String  @map("genre_id")
+  name        String
+  draftName   String? @map("draft_name")
+  description String?
+  sortOrder   Int     @map("sort_order")
+  isActive    Boolean @default(true) @map("is_active")
+
+  // 2026-08-06追加: 結果ごとのLINEシナリオ振り分け(未設定ならLineSettingsのグローバル値を使う)
+  lineUrlOverride     String? @map("line_url_override")
+  lineMessageOverride String? @map("line_message_override")
+
+  genre            Genre @relation(fields: [genreId], references: [genreId])
+  generalKnowledge GeneralKnowledge[]
+  productMaps      ProductConcernMap[]
+  optionMaps       OptionConcernMap[]
+  questions        Question[]
+  results          DiagnosisResult[]
+
+  @@map("concern_categories")
+}
+
+model GeneralKnowledge {
+  knowledgeId       Int     @id @default(autoincrement()) @map("knowledge_id")
+  categoryId        String  @map("category_id")
+  contentText       String  @map("content_text")
+  draftContentText  String? @map("draft_content_text")
+  // 改善策の提案画面(2026-08-05リニューアル)の「改善方法(How)」段に表示するセルフケア情報。
+  // 製品に依存しない、まず自分でできることを案内する(「まずできること→それを補完する製品」という導線のため)。
+  selfCareText      String? @map("self_care_text")
+  draftSelfCareText String? @map("draft_self_care_text")
+  isSourceVerified  Boolean @default(false) @map("is_source_verified")
+  sourceUrl         String? @map("source_url")
+
+  category ConcernCategory @relation(fields: [categoryId], references: [categoryId], onDelete: Cascade)
+
+  @@map("concern_general_knowledge")
+}
+
+model ProductConcernMap {
+  mapId      Int    @id @default(autoincrement()) @map("map_id")
+  productId  Int    @map("product_id")
+  categoryId String @map("category_id")
+  priority   Int
+
+  product  Product         @relation(fields: [productId], references: [productId], onDelete: Cascade)
+  category ConcernCategory @relation(fields: [categoryId], references: [categoryId], onDelete: Cascade)
+
+  @@map("product_concern_map")
+}
+
+model Question {
+  questionId        Int          @id @default(autoincrement()) @map("question_id")
+  step              Int
+  questionText      String       @map("question_text")
+  questionType      QuestionType @map("question_type")
+  parentCategoryId  String?      @map("parent_category_id")
+
+  parentCategory ConcernCategory? @relation(fields: [parentCategoryId], references: [categoryId])
+  options        QuestionOption[]
+
+  @@map("questions")
+}
+
+model QuestionOption {
+  optionId   Int    @id @default(autoincrement()) @map("option_id")
+  questionId Int    @map("question_id")
+  optionText String @map("option_text")
+  sortOrder  Int    @map("sort_order")
+
+  question    Question           @relation(fields: [questionId], references: [questionId], onDelete: Cascade)
+  concernMaps OptionConcernMap[]
+  productMaps OptionProductMap[]
+
+  @@map("question_options")
+}
+
+// 補足テーブル(database_design.mdの原設計を拡張):
+// diagnosis_logic_design.mdのQ3-B(部分的/顔全体で提案製品が分岐)のように、
+// カテゴリ単位のproduct_concern_mapだけでは表現できない「選択肢ごとの製品指定」を扱う。
+// 該当がない選択肢では使用せず、その場合はproduct_concern_mapのpriority順にフォールバックする。
+model OptionProductMap {
+  mapId     Int @id @default(autoincrement()) @map("map_id")
+  optionId  Int @map("option_id")
+  productId Int @map("product_id")
+
+  option  QuestionOption @relation(fields: [optionId], references: [optionId], onDelete: Cascade)
+  product Product        @relation(fields: [productId], references: [productId], onDelete: Cascade)
+
+  @@map("option_product_map")
+}
+
+model OptionConcernMap {
+  mapId      Int    @id @default(autoincrement()) @map("map_id")
+  optionId   Int    @map("option_id")
+  categoryId String @map("category_id")
+
+  option   QuestionOption  @relation(fields: [optionId], references: [optionId], onDelete: Cascade)
+  category ConcernCategory @relation(fields: [categoryId], references: [categoryId], onDelete: Cascade)
+
+  @@map("option_concern_map")
+}
+
+model DiagnosisSession {
+  sessionId           String   @id @default(uuid()) @map("session_id")
+  startedAt            DateTime @default(now()) @map("started_at")
+  answersJson           Json     @map("answers_json")
+  lineRedirectClicked  Boolean  @default(false) @map("line_redirect_clicked")
+
+  results DiagnosisResult[]
+
+  @@map("diagnosis_sessions")
+}
+
+model DiagnosisResult {
+  resultId               Int      @id @default(autoincrement()) @map("result_id")
+  sessionId              String   @map("session_id")
+  categoryId             String   @map("category_id")
+  recommendedProductIds  Json     @map("recommended_product_ids")
+  displayedAt            DateTime @default(now()) @map("displayed_at")
+
+  session  DiagnosisSession @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+  category ConcernCategory  @relation(fields: [categoryId], references: [categoryId])
+
+  @@map("diagnosis_results")
+}
+
+// ここから2026-08-06追加: 管理画面の本格CMS化(依頼者の実装指示書に基づく)
+
+model AdminUser {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique
+  passwordHash String   @map("password_hash")
+  role         String // "admin" | "editor"
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("admin_users")
+}
+
+// TOP画面・診断ウィザード・結果画面のハードコードされた文言をキー・バリューで管理する。
+// draftValueがあればプレビュー時にそちらを優先し、公開ボタンでvalueへ反映する。
+model SiteContent {
+  key        String   @id
+  page       String // 管理画面でのグルーピング単位: "home" | "diagnosis" | "result"
+  label      String // 管理画面に表示する分かりやすいラベル
+  value      String
+  draftValue String?  @map("draft_value")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("site_contents")
+}
+
+// 画像URLを登録するだけの簡易メディアライブラリ(実アップロードはPhase2で対応)
+model SiteImage {
+  id        Int      @id @default(autoincrement())
+  url       String
+  altText   String?  @map("alt_text")
+  folder    String?
+  usage     String? // 用途メモ(例: "TOPページ ヒーロー画像")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("site_images")
+}
+
+// ブランドカラー等のデザイン設定(単一行、id=1固定)
+model DesignSettings {
+  id              Int      @id @default(1)
+  primaryColorHex String   @default("#e11d48") @map("primary_color_hex")
+  logoUrl         String?  @map("logo_url")
+  faviconUrl      String?  @map("favicon_url")
+  buttonStyle     String   @default("rounded-full") @map("button_style") // "rounded-full" | "rounded-lg" | "square"
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("design_settings")
+}
+
+// LINE誘導のグローバル設定(単一行、id=1固定)。カテゴリ別の上書きはConcernCategory側に持つ。
+model LineSettings {
+  id             Int      @id @default(1)
+  lineUrl        String   @map("line_url")
+  buttonText     String   @default("LINEで相談する") @map("button_text")
+  bannerImageUrl String?  @map("banner_image_url")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("line_settings")
+}
+
+// 「おすすめのお手入れステップ」の並び順(旧: lib/diagnosis.tsのハードコード配列)
+model CareStepOrder {
+  id        Int    @id @default(autoincrement())
+  keyword   String // Product.categoryに部分一致させるキーワード
+  sortOrder Int    @map("sort_order")
+
+  @@map("care_step_order")
+}
