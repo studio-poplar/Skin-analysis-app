@@ -206,11 +206,14 @@ export async function getDiagnosisResult(
   // 化粧水やマルチビタミン等、複数カテゴリに共通で紐付く製品が結果画面で重複表示されないよう、
   // ジャンル→カテゴリの並び順で最初に登場したカテゴリの「それを補完するアイテム」にのみ表示する
   // (お手入れステップは元々製品ID単位でユニーク化されているため対象外)。
+  // 併せて、どのカテゴリがその製品を先取りしたかを記録しておく(カテゴリ別お手入れステップ順の解決に使う。節7-9・v5指示書2-1参照)。
   const claimedProductIds = new Set<number>();
+  const productClaimedByCategory = new Map<number, string>();
   for (const r of sortedResults) {
     const productIds = ((r.recommendedProductIds as number[]) ?? []).filter((id) => {
       if (claimedProductIds.has(id)) return false;
       claimedProductIds.add(id);
+      productClaimedByCategory.set(id, r.categoryId);
       return true;
     });
     const knowledge = knowledgeByCategory.get(r.categoryId);
@@ -249,10 +252,28 @@ export async function getDiagnosisResult(
   // 「お手入れステップ」はスキンケアの塗布順の概念であり、サプリメント等(同時摂取に注意が
   // 必要な組み合わせもある)を並べて「順番に使う」ものとして誤解させないよう、
   // スキンケア該当製品(CareStepOrderに一致するもの、管理画面で編集可能)のみを対象にする。
-  const careStepOrder = await prisma.careStepOrder.findMany({ orderBy: { sortOrder: "asc" } });
+  // 2026-08-09追加: カテゴリごとに専用の並び順を設定できるようにした(v5指示書2-1)。
+  // 複数カテゴリにまたがる製品は、節7-9の重複排除で「先取りした」カテゴリの設定を採用する。
+  const allCareStepOrders = await prisma.careStepOrder.findMany({ orderBy: { sortOrder: "asc" } });
+  const defaultCareStepOrder = allCareStepOrders.filter((s) => !s.categoryId);
+  const careStepOrderByCategory = new Map<string, typeof allCareStepOrders>();
+  for (const step of allCareStepOrders) {
+    if (!step.categoryId) continue;
+    if (!careStepOrderByCategory.has(step.categoryId)) careStepOrderByCategory.set(step.categoryId, []);
+    careStepOrderByCategory.get(step.categoryId)!.push(step);
+  }
+  function orderForProduct(productId: number) {
+    const categoryId = productClaimedByCategory.get(productId);
+    if (categoryId) {
+      const categoryOrder = careStepOrderByCategory.get(categoryId);
+      if (categoryOrder && categoryOrder.length > 0) return categoryOrder;
+    }
+    return defaultCareStepOrder;
+  }
+
   const careSteps = products
-    .filter((p) => careStepRank(p.category, careStepOrder) < careStepOrder.length)
-    .sort((a, b) => careStepRank(a.category, careStepOrder) - careStepRank(b.category, careStepOrder))
+    .filter((p) => careStepRank(p.category, orderForProduct(p.productId)) < orderForProduct(p.productId).length)
+    .sort((a, b) => careStepRank(a.category, orderForProduct(a.productId)) - careStepRank(b.category, orderForProduct(b.productId)))
     .map((p) => ({
       productId: p.productId,
       nameJp: p.nameJp,

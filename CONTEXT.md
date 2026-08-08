@@ -4,9 +4,9 @@
 **このファイルを添付してから**「続きをお願いします」と伝えるためのものです。
 `docs/` フォルダの元の設計書と合わせて読むと経緯が分かります(ただし`docs/`はスキンケアのみを対象にした初期版で、現在のサイト構成とはズレがあります。節1・5参照)。
 
-最終更新: 2026-08-08(打ち合わせフォローアップ対応: 結果URLトークンの3ヶ月失効を実装、未確定事項の一部を解消、ホスティング・Phase2着手タイミングの推奨案を記録)
+最終更新: 2026-08-09(追加実装指示書v5対応: FAQページ新設、カテゴリ別お手入れステップ、管理画面の非表示/削除ボタン、背景画像・文字色・フォント設定を実装)
 
-> **次のセッションで最初にやること**: 運営者に「プライバシーポリシーに載せる運営者名・お問い合わせ先・制定日」を確認済み(2026-08-08に依頼、まだ回答待ち)。回答が来ていたら`/admin/content`(プライバシーポリシーのグループ)からそれぞれの`SiteContent`の値を更新すること(節7-4・節9-8参照)。他に新しい依頼があれば、まずそちらを優先してよい。
+> **次のセッションで最初にやること**: 特になし。節7-12までの対応がすべて完了済み。本番URLは`https://skin-analysis-app-wine.vercel.app`。次にやりそうなことは節9・節11を参照。新しい依頼があればそちらを優先してよい。
 
 ---
 
@@ -30,8 +30,8 @@ Nu Skin ageLOC製品の診断型Webアプリ。ユーザーが選択式の質問
 ## 2. 技術スタックと、設計書からの変更点
 
 - **Next.js 16**(App Router, Turbopack)+ TypeScript + Tailwind CSS v4
-- **Prisma 6系**(ORM)+ **SQLite**(`prisma/dev.db`、ローカルファイルDB)
-  - 設計書はPostgreSQL想定だったが、ローカルで即動かせるようSQLiteにした。本番はVercel Postgres等に切り替え可能な構成(Prismaのdatasourceを変えるだけ)。
+- **Prisma 6系**(ORM)+ **PostgreSQL**(Neon、2026-08-08にSQLiteから移行済み。節7-11参照。ローカル開発も同じNeonのDBに接続する運用)
+  - 開発初期はローカルで即動かせるようSQLite(`prisma/dev.db`)にしていたが、本番ホスティング(Vercel)移行にあわせてPostgresへ切り替えた。`prisma/dev.db`自体は切り戻し用にローカルに残してある。
   - Prisma最新版(v7)は接続方式が大きく変わり複雑なため、安定版のv6系を採用。
 - 認証は診断側は不要(匿名)。管理画面(`/admin`)は**ユーザー名+パスワードの2段階権限(admin/editor)認証**(節6参照)。
 - 下書き/プレビュー機構(節6参照)は、Next.js標準の`draftMode()`ではなく、テーブルに`draft*`列を持たせる自前の軽量実装。
@@ -376,6 +376,69 @@ ageLOC ダーマティック エフェクツ(`DERMATIC-EFFECTS`)を`isActive: fa
 
 目安としては、**本番公開から1〜2ヶ月ほど運用し、診断完了数・LINE相談クリック数(`/admin`ダッシュボードで確認可能)がある程度たまった時点**で、どのPhase2機能から着手するかを改めて相談するのがよい。
 
+### 7-11. Vercel + Postgres(Neon)への本番ホスティング移行(2026-08-08、完了)
+
+節7-10の推奨に対し運営者からGOサインが出たため、実際に移行を実施した。
+
+**GitHub連携**:
+- 運営者が作成した空リポジトリ `https://github.com/studio-poplar/Skin-analysis-app.git` に、このプロジェクトのこれまでの全作業を**初めてgit commit**し(それまでは「Initial commit from Create Next App」の1コミットのみだった)、push した。以後はこのリポジトリの`master`ブランチへのpushでVercelが自動デプロイする。
+- push時のGitHub認証は、運営者自身のPC上のターミナルでVercel/GitHubへのログインを行ってもらう形で対応した(パスワード等はClaude Codeには渡っていない)。
+
+**Vercelプロジェクト**:
+- プロジェクト名: `skin-analysis-app`(Vercelチーム: `studio-poplar's projects`)。リポジトリ直下がそのままアプリのルート(サブフォルダ指定は不要)。
+- デプロイ直後にブラウザのアドレスバーに残る**デプロイごとのランダムURL**(例: `skin-analysis-nlve4g9eq-studio-poplars-projects.vercel.app`)と、**常に最新の本番デプロイを指す固定URL**(`https://skin-analysis-app-wine.vercel.app`、Vercelが自動割り当て)の2種類があるので混同しないこと。**運営者・利用者に案内する正式な本番URLは`https://skin-analysis-app-wine.vercel.app`**(独自ドメインは今回不要と運営者確認済み)。
+
+**データベース(Postgres/Neon)**:
+- Vercelの「Storage → Neon(Marketplace統合)」経由でPostgresを1つ作成したが、**この経路で作成した接続文字列は`Sensitive`設定により二度と参照できない仕様**だったため、代わりに[console.neon.tech](https://console.neon.tech)に直接ログイン(同じVercelアカウントと連携済みのため同じデータベースがそのまま見える)し、そちらの画面から接続文字列を取得した。
+- `prisma/schema.prisma`の`datasource`を`sqlite`→`postgresql`に変更(`url = env("DATABASE_URL")`, `directUrl = env("DATABASE_URL_UNPOOLED")`。この2つの変数名はNeonのVercel連携が自動投入する環境変数名にあわせてある)。
+- 旧SQLite用のマイグレーション履歴(`prisma/migrations/`配下の3件)はPostgresと非互換のため削除し、新しいスキーマから`prisma migrate dev --name init_postgres`で作り直した(1本の新規マイグレーションに統合)。
+- 移行前のSQLite(`prisma/dev.db`)の全17テーブルを一旦JSONへエクスポートし(`adminUser`2件・`product`90件・`productClinicalData`90件・`concernCategory`19件・`productConcernMap`41件・`siteContent`37件・`diagnosisSession`49件・`diagnosisResult`67件など)、Postgresへ`createMany`で一括インポートしたうえで、テーブルごとの件数を突き合わせて**全件一致を確認済み**。オートインクリメント列(`products.product_id`等)はPostgresのシーケンスを`setval`で最大値+1に補正済み(以後の新規登録が既存IDと衝突しないようにするため)。
+- ローカルの開発環境(`.env`)も、この同じPostgres(Neon)を向くように変更した。**今後はローカル開発時も本番と同じデータベースに対して操作する運用になる**(小規模・単一運営者のプロジェクトのため、開発用と本番用でDBを分けるコストより運用のシンプルさを優先した判断。SQLiteの`dev.db`ファイル自体は削除せずローカルに残してあるので、万一の切り戻しは可能)。
+
+**ハマった点・対応**:
+- Vercelの環境変数のうち「Sensitive」設定のものは、ダッシュボードはもちろん`vercel env pull`のCLI経由でも値が`[SENSITIVE]`という伏字になり、一切取得できない(アプリの実行時にのみ復号される仕様)。データ移行のような「値そのものを別の場所でも使いたい」作業では、Marketplace統合ではなくNeon自体のコンソールから直接値を取る必要がある。
+- 初回デプロイは`AUTH_SECRET`(管理画面のセッション署名鍵)がVercel側に未設定だったため、管理画面ログインが500エラーになった。`AUTH_SECRET`(新規に生成した本番用の値)・`ADMIN_PASSWORD`・`NEXT_PUBLIC_LINE_URL`をVercelの環境変数(Production/Preview)に追加し、再デプロイして解消した。
+- デプロイ直後の動作確認は、ブラウザのアドレスバーに残っている**古いデプロイ固有のURL**(ランダムな文字列付き)にアクセスしてしまい、新しいデプロイの反映を確認できていないように見える、という紛らわしい状況が発生した。再デプロイ後の確認は、Vercelの「Deployments」一覧から最新のものを開き直すか、固定のドメインからアクセスする必要がある。
+- 動作確認済み: 本番URLでのトップページ・プライバシーポリシー・管理画面ログイン(`admin`/`changeme`)・`/admin/products`での製品90件表示。
+
+**残タスク(節9にも転記)**:
+- `ADMIN_PASSWORD`(`changeme`のまま)・LINE公式URL(仮のまま)の本番用差し替え(節9-4、公開直前に対応の方針は変更なし)
+- Neon無料枠(ストレージ0.5GB、コンピュート月100 CU時間)の利用状況を`/admin`または[console.neon.tech](https://console.neon.tech)で定期的に確認すること
+
+### 7-12. 追加実装指示書v5対応(2026-08-09)
+
+打ち合わせで出た新しい依頼(FAQページ・管理画面の非表示/削除ボタン・お手入れステップのカテゴリ別化・背景画像/文字色/フォント設定)に、指示書の優先順位通りに対応した。
+
+#### FAQページの新規追加(節1)
+
+- 新規`FAQItem`テーブル(質問/回答/`category`("product"|"site")/並び順/公開・非公開)を追加。1問1問を個別に編集・並び替え・非表示にできる構造にした(指示書の要件通り)。
+- `/faq`(新規、`src/app/faq/page.tsx`)で`isActive:true`の質問のみ`<details>`アコーディオンで表示。トップ画面・結果画面のフッターにリンクを追加。
+- 「製品についてのFAQ」8問を初期データとして投入(`category: "product"`)。内容は公式サイト(返品・交換ページ、ADP定期購入プログラムページ等)を調査のうえ作成 — 出典: [返品・交換](https://www.nuskin.com/content/markets/ja_JP/customer-service/returns-exchanges.html)、[消費者保護(クーリングオフ)](https://www.nuskin.com/content/markets/ja_JP/company/compliance/consumer-protection.html)、[ADP定期購入](https://www.nuskin.com/content/markets/ja_JP/opportunity/joinus/automatic-delivery-program.html)、[正規販売ルートについて](https://www.nuskin.com/content/markets/ja_JP/company/compliance/resale-product.html)。返品・定期購入の詳細な条件は購入経路によって変わりうるため、回答文では断定を避けLINE相談への誘導を添えている。
+- 「このサイトについてのFAQ」(`category: "site"`)は指示書通り空枠のまま。運営者が`/admin/faq`から今後追加していく想定。
+- 管理画面`/admin/faq`(新規)で質問・回答・並び順・公開/非公開の編集、追加、削除ができる。
+
+#### 管理画面の非表示・削除ボタン追加(節2-3、指示書の優先度最上位)
+
+- `/admin/flow`(ジャンル・症状カテゴリ)・`/admin/products`(製品)・`/admin/knowledge`(カテゴリのWhy/How)の3画面に、「非表示にする」(既存の`isActive`フラグを分かりやすいボタンでトグル)と「削除する」ボタンを追加した。
+- 削除の安全策(指示書の要求通り): 過去の診断結果で参照されている項目は削除ボタンを無効化(グレーアウト)し、理由をツールチップで表示する。
+  - ジャンル: 配下に症状カテゴリが1件でも残っていれば削除不可(`deleteGenreAction`)。
+  - 症状カテゴリ: `DiagnosisResult.categoryId`で参照されていれば削除不可(`deleteCategoryAction`)。参照が無い場合、紐づく`GeneralKnowledge`・`ProductConcernMap`・カテゴリ別`CareStepOrder`はスキーマの`onDelete: Cascade`で自動的に削除される(現在の設定データであり履歴データではないため問題ない)。
+  - 製品: `DiagnosisResult.recommendedProductIds`(JSON配列、FK制約なし)に含まれていれば削除不可。JSON配列のためDBの外部キー制約に頼れず、`$queryRaw`でPostgresのJSON包含演算子(`@>`)を使ってチェックしている(`deleteProductAction`)。
+  - `GeneralKnowledge`(Why/How)は`DiagnosisResult`から直接参照されない(結果画面はcategoryId経由でその都度取得するだけ)ため、削除の可否チェックは不要で常に削除可能とした。削除後にWhy/Howが空になったカテゴリには、`/admin/knowledge`に簡易な「追加する」フォームが出る。
+- 動作確認の過程で、以前のセッションのテスト操作で残っていたと見られる名前空欄・カテゴリ0件のジャンル(`genre-mskisy17`)を発見し、新しい削除機能で問題なく削除できることを確認・実施した(v5指示書の対応とは別件の副次的なクリーンアップ)。
+
+#### お手入れステップのカテゴリ別化(節2-1)
+
+- `CareStepOrder`に`categoryId`(nullable)列を追加。`categoryId: null`の行が「全体共通のデフォルト」、値がある行がそのカテゴリ専用の並び順になる。
+- 設定場所は指示書通り`/admin/mapping`の各カテゴリの優先順位リストの下(`<details>`で折りたたみ)。`/admin/products`側は「全体共通のデフォルト」の編集のみに変更し、`/admin/mapping`への導線を追記した。
+- `src/lib/diagnosis.ts`の並べ替えロジックを変更: 節7-9の重複排除(`claimedProductIds`)のループで、どのカテゴリが各製品を「先取り」したかを`productClaimedByCategory`に記録し、結果画面の「おすすめのお手入れステップ」を組み立てる際、製品ごとに(先取りしたカテゴリの専用設定があればそれを、無ければ全体共通のデフォルトを)適用するようにした。指示書が懸念していた「節7-9との整合性」は、この「先取りしたカテゴリの設定を使う」という整理で解消している。
+  - 既知の制約: 複数カテゴリの製品が1つの結果に混在する場合、異なるカテゴリの並び順設定(それぞれ0始まりの順位)を1つのリストにまとめてソートするため、順位が偶然一致する製品同士の相対順序は配列の元の並びに依存する。実用上大きな問題にはなりにくいが、将来的に気になる場合は全体を通した1つの順位体系にする等の再設計が考えられる。
+
+#### ページ文言管理: 背景画像・文字色・フォント(節2-2、指示書の優先度最下位)
+
+- 背景画像: 新規のテーブルは作らず、既存の`SiteContent`に`{page}.background_image_url`キー(home/diagnosis/result/privacy/faq の5つ)を追加する形で実装(指示書の「実装しやすい方でよい」に基づく判断)。`/admin/content`に専用の「背景画像」セクションを設け、`/admin/images`(画像管理)に登録済みのURLが入力欄で候補表示される(`<datalist>`、選ばなくても任意のURLを直接入力可)。各公開ページ(`src/lib/background.ts`の`backgroundStyleFor()`)で`background-image`として適用。
+- 文字色・フォント: `DesignSettings`に`bodyTextColorHex`(任意、未設定なら変更なし)・`fontFamily`("sans"|"serif"|"mono")を追加。`/admin/design`(admin専用)で設定し、`src/app/layout.tsx`の`<body>`にインラインstyleとして反映(全ページ共通、指示書の「まず全ページ共通で十分」という要件通り)。
+
 ## 8. 起動方法・開発環境の注意点
 
 ```bash
@@ -397,25 +460,26 @@ npm --prefix ageloc-diagnosis run dev
 1. **薬機法対応**: 「一般知識」は全カテゴリ出典未確認のまま。公開前に専門家レビューが必要。(「アトピー・炎症」カテゴリの表現見直しは運営者の判断により検討事項から外した — 2026-08-08)
 2. **一部カテゴリの製品データ**: 「産後に体型が戻らない」「姿勢を改善したい」「肩こり・腰痛などのこり」「睡眠の質」「気分の浮き沈み・ストレス」に対応する公式の製品訴求が見つからず未紐付け。運営者側で`/admin/mapping`から順次追加していく運用でよいと合意済み。
 3. **登録を見送った製品ライン**: ニューカラー(メイクアップ)、AP24(歯磨き)、エスネピック、シャンプー/ボディソープ等の日用品バリエーション。**運営者側で`/admin/products`から順次追加していく方針で確定**(2026-08-08)。新ジャンルの要否等は追加のタイミングで都度判断する。
-4. **LINE公式アカウントのURL・管理者パスワード**: 現状`/admin/line`のURLが仮のもの(`https://line.me/R/ti/p/@example`)、`.env`の`ADMIN_PASSWORD`も`changeme`のまま。**本番公開の直前にまとめて差し替える方針**で合意済み(今回のタスクではない)。
-5. **ホスティング先・Postgres移行**: 未確定。Claude Codeからの推奨は「Vercel(ホスティング)+ Vercel Postgres or Neon(DB)」(節7-10参照)。運営者側で最終判断待ち。
-6. **画像アップロード機能**: 現状URL登録のみ。実ファイルアップロード(S3等)は引き続きスコープ外、Phase2で検討。
-7. **`seed.ts`再実行時の上書きリスク**: 節5・7-1参照。CMS運用開始後はseed.tsの再実行を避けること。
-8. **プライバシーポリシーの運営者情報**: 節7-4の通り、運営者名・連絡先・制定日がプレースホルダーのまま。**運営者から実データの提供待ち**(2026-08-08に依頼済み)。公開前に`/admin/content`から反映し、可能であれば法務・専門家レビューを受けることを推奨。
+4. **LINE公式アカウントのURL・管理者パスワード**: 現状Vercel本番環境でも`NEXT_PUBLIC_LINE_URL`が仮のもの(`https://line.me/R/ti/p/@example`)、`ADMIN_PASSWORD`も`changeme`のまま。**本番公開の直前にまとめて差し替える方針**で合意済み(今回のタスクではない)。
+5. **画像アップロード機能**: 現状URL登録のみ。実ファイルアップロード(S3等)は引き続きスコープ外、Phase2で検討。
+6. **`seed.ts`再実行時の上書きリスク**: 節5・7-1参照。CMS運用開始後はseed.tsの再実行を避けること。
+7. **「このサイトについてのFAQ」が空枠のまま**: 節7-12・v5指示書1の通り、サイト固有のFAQは運営者と内容を相談して`/admin/faq`から追加していく方針(意図的に空、バグではない)。
 
-**解決済み(2026-08-08)**: 結果URLトークンの保存期間は**3ヶ月**に決定し、コード対応済み(節7-9参照、`RESULT_LINK_EXPIRY_DAYS`)。
+**解決済み(2026-08-08〜09)**:
+- 結果URLトークンの保存期間は**3ヶ月**に決定し、コード対応済み(節7-9参照、`RESULT_LINK_EXPIRY_DAYS`)。
+- プライバシーポリシーの運営者情報(運営者名: Well Spring、連絡先: info@w.spring.com、制定日: 2026年8月8日)を反映済み(節7-4参照)。
+- ホスティング先(Vercel)・DB(Postgres/Neon)への移行を完了(節7-11参照)。
+- FAQページ・お手入れステップのカテゴリ別化・管理画面の非表示/削除ボタン・背景画像/文字色/フォント設定を実装(節7-12参照)。
+- **固定の本番URLを確認・確定**: `https://skin-analysis-app-wine.vercel.app`(Vercelが自動割り当てた、デプロイのたびに変わらない既定ドメイン)。運営者の意向により独自ドメインの取得・設定は行わず、このURLを正式な本番URLとする。
 
 ## 10. Gitの状態
 
-このプロジェクトは `ageloc-diagnosis/` フォルダ内で `create-next-app` が自動的にgit初期化しており、
-**「Initial commit from Create Next App」の1コミットのみ**存在する。
-それ以降にこのセッションで作った/変更した内容(Prisma・診断ロジック・管理画面・サイト構成変更・CMS化・v2追加分など、ほぼ全て)は
-**まだコミットされていない**(ユーザーの意向によりまだコミットしていない)。区切りの良いタイミングでコミットすることを推奨。
+2026-08-08に、それまで未コミットだった全作業(Prisma・診断ロジック・管理画面・サイト構成変更・CMS化・v2〜v4追加分・Postgres移行など、ほぼ全て)を初めてcommitし、運営者が作成したGitHubリポジトリ `https://github.com/studio-poplar/Skin-analysis-app.git` の`master`ブランチへpush済み。以後はこのリポジトリへのpushでVercelが自動デプロイする(節7-11参照)。
 
 ## 11. 次にやりそうなこと(会話の流れ上の未決事項)
 
-- 節9にまとめた未確定事項(未紐付けカテゴリ・登録見送り製品ライン・薬機法確認・本番用パスワード/URL・プライバシーポリシーの実データ・トークン保存期間等)の解消
-- 本番公開に向けた準備(ホスティング先確定・Postgresへの移行・パスワード変更・LINE URL差し替え)
+- 節9にまとめた未確定事項(未紐付けカテゴリ・登録見送り製品ライン・薬機法確認・本番用パスワード/URL・固定ドメイン設定等)の解消
+- 本番公開に向けた最終準備(パスワード変更・LINE URL差し替え・固定ドメイン設定)
 - 節7-5に記録したPhase2構想(パーソナライズ高度化、会員化・継続フォロー、ビジュアル分岐エディタ、分析ダッシュボード等)の検討
 - 節7-9に記録した「予算に応じた製品提案パターン」(Phase2・設計メモのみ、`ProductConcernMap`への価格帯タグ列追加が軽量な実現案)の検討
 - 管理画面のStep単位グルーピング第2段階(`/admin/flow`と`/admin/content`の統合ビュー化)の検討(運営者が実際に使ってみて必要性を感じた場合)

@@ -1,8 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import {
+  addCareStepAction,
   addCategoryProductAction,
+  removeCareStepAction,
   removeCategoryProductAction,
   setOptionOverrideAction,
+  updateCareStepAction,
   updateCategoryProductPriorityAction,
 } from "../../actions";
 
@@ -10,7 +13,7 @@ export default async function AdminMappingPage(props: PageProps<"/admin/mapping"
   const searchParams = await props.searchParams;
   const saved = searchParams?.saved === "1";
 
-  const [genres, products, q3Questions] = await Promise.all([
+  const [genres, products, q3Questions, careSteps] = await Promise.all([
     prisma.genre.findMany({
       orderBy: { sortOrder: "asc" },
       include: {
@@ -32,7 +35,15 @@ export default async function AdminMappingPage(props: PageProps<"/admin/mapping"
         },
       },
     }),
+    prisma.careStepOrder.findMany({ orderBy: { sortOrder: "asc" } }),
   ]);
+
+  const careStepsByCategory = new Map<string, typeof careSteps>();
+  for (const step of careSteps) {
+    if (!step.categoryId) continue;
+    if (!careStepsByCategory.has(step.categoryId)) careStepsByCategory.set(step.categoryId, []);
+    careStepsByCategory.get(step.categoryId)!.push(step);
+  }
 
   const q3ByCategory = new Map(q3Questions.map((q) => [q.parentCategoryId!, q]));
 
@@ -91,6 +102,62 @@ export default async function AdminMappingPage(props: PageProps<"/admin/mapping"
                   <p className="text-xs text-zinc-400">まだ製品が設定されていません。</p>
                 )}
               </div>
+
+              <details className="mb-4 rounded-lg border border-zinc-100 p-3">
+                <summary className="cursor-pointer text-xs font-semibold text-zinc-500">
+                  このカテゴリ専用のお手入れステップ順
+                  {(careStepsByCategory.get(category.categoryId)?.length ?? 0) === 0 && "(未設定・全体共通のデフォルトを使用中)"}
+                </summary>
+                <p className="mt-2 mb-3 text-xs text-zinc-400">
+                  設定すると、このカテゴリが結果に含まれる場合の「おすすめのお手入れステップ」の並び順に、
+                  <a href="/admin/products" className="underline">製品管理</a>の全体共通デフォルトより優先して使われます。
+                </p>
+                <div className="mb-3 space-y-2">
+                  {(careStepsByCategory.get(category.categoryId) ?? []).map((step) => (
+                    <div key={step.id} className="flex items-center gap-2">
+                      <form action={updateCareStepAction} className="flex flex-1 items-center gap-2">
+                        <input type="hidden" name="id" value={step.id} />
+                        <input type="hidden" name="returnTo" value="/admin/mapping" />
+                        <input
+                          type="number"
+                          name="sortOrder"
+                          defaultValue={step.sortOrder}
+                          className="w-14 rounded-lg border border-zinc-200 px-2 py-1 text-sm"
+                        />
+                        <input
+                          type="text"
+                          name="keyword"
+                          defaultValue={step.keyword}
+                          className="flex-1 rounded-lg border border-zinc-200 px-2 py-1 text-sm"
+                        />
+                        <button type="submit" className="rounded-full border border-zinc-300 px-2 py-1 text-xs font-semibold text-zinc-600 hover:bg-zinc-50">
+                          保存
+                        </button>
+                      </form>
+                      <form action={removeCareStepAction}>
+                        <input type="hidden" name="id" value={step.id} />
+                        <input type="hidden" name="returnTo" value="/admin/mapping" />
+                        <button type="submit" className="rounded-full border border-rose-200 px-2 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50">
+                          削除
+                        </button>
+                      </form>
+                    </div>
+                  ))}
+                </div>
+                <form action={addCareStepAction} className="flex items-center gap-2">
+                  <input type="hidden" name="categoryId" value={category.categoryId} />
+                  <input type="hidden" name="returnTo" value="/admin/mapping" />
+                  <input
+                    type="text"
+                    name="keyword"
+                    placeholder="新しいキーワード(例: 化粧水)"
+                    className="flex-1 rounded-lg border border-dashed border-zinc-300 px-2 py-1 text-sm"
+                  />
+                  <button type="submit" className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-600 hover:bg-zinc-200">
+                    追加
+                  </button>
+                </form>
+              </details>
 
               {addableProducts.length > 0 && (
                 <form action={addCategoryProductAction} className="mb-4 flex items-center gap-2">

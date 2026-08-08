@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { prisma } from "@/lib/prisma";
-import { buttonRadiusFor, darkenHex } from "@/lib/design";
+import { buttonRadiusFor, darkenHex, fontFamilyStackFor } from "@/lib/design";
 
 export async function generateMetadata(): Promise<Metadata> {
   const design = await prisma.designSettings.findUnique({ where: { id: 1 } });
@@ -17,10 +17,15 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   const primaryColor = design?.primaryColorHex ?? "#e11d48";
   const primaryColorHover = darkenHex(primaryColor, 0.12);
   const buttonRadius = buttonRadiusFor(design?.buttonStyle ?? "rounded-full");
+  const bodyTextColor = design?.bodyTextColorHex || undefined;
+  const fontFamilyStack = fontFamilyStackFor(design?.fontFamily ?? "sans");
 
   return (
     <html lang="ja" className="h-full antialiased">
-      <body className="min-h-full flex flex-col bg-zinc-50 font-sans text-zinc-900">
+      <body
+        className="min-h-full flex flex-col bg-zinc-50 font-sans text-zinc-900"
+        style={{ color: bodyTextColor, fontFamily: fontFamilyStack }}
+      >
         <style
           // eslint-disable-next-line react/no-danger
           dangerouslySetInnerHTML={{

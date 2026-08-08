@@ -14,3 +14,9 @@ export function buttonRadiusFor(style: string): string {
   if (style === "rounded-lg") return "0.5rem";
   return "9999px";
 }
+
+export function fontFamilyStackFor(fontFamily: string): string | undefined {
+  if (fontFamily === "serif") return "ui-serif, Georgia, 'Hiragino Mincho ProN', 'Yu Mincho', serif";
+  if (fontFamily === "mono") return "ui-monospace, SFMono-Regular, 'Courier New', monospace";
+  return undefined; // "sans"はTailwindのfont-sansクラス(既定)をそのまま使う
+}

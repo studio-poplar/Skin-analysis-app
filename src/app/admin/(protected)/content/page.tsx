@@ -11,15 +11,28 @@ const STEP_GROUPS: { title: string; keys: string[] }[] = [
   { title: "Step5: 改善策の提案(結果画面)", keys: ["result.eyebrow", "result.heading", "result.summary_label", "result.why_label", "result.how_label", "result.support_label", "result.support_empty", "result.care_steps_heading", "result.cta_intro", "result.back_to_top"] },
 ];
 
+// ページごとの背景画像URL。SiteImage(画像管理)に登録したURLからも選べるよう<datalist>で補助する。
+const BACKGROUND_IMAGE_KEYS = [
+  { key: "home.background_image_url", label: "ホーム" },
+  { key: "diagnosis.background_image_url", label: "診断ウィザード" },
+  { key: "result.background_image_url", label: "結果画面" },
+  { key: "privacy.background_image_url", label: "プライバシーポリシー" },
+  { key: "faq.background_image_url", label: "FAQ" },
+];
+
 export default async function AdminContentPage(props: PageProps<"/admin/content">) {
   const searchParams = await props.searchParams;
   const saved = searchParams?.saved === "1";
   const draftSaved = searchParams?.draftSaved === "1";
   const published = searchParams?.published === "1";
 
-  const contents = await prisma.siteContent.findMany({ orderBy: [{ page: "asc" }, { key: "asc" }] });
+  const [contents, siteImages] = await Promise.all([
+    prisma.siteContent.findMany({ orderBy: [{ page: "asc" }, { key: "asc" }] }),
+    prisma.siteImage.findMany({ orderBy: { createdAt: "desc" } }),
+  ]);
   const byKey = new Map(contents.map((c) => [c.key, c]));
-  const groupedKeys = new Set(STEP_GROUPS.flatMap((g) => g.keys));
+  const backgroundImageKeySet = new Set(BACKGROUND_IMAGE_KEYS.map((b) => b.key));
+  const groupedKeys = new Set([...STEP_GROUPS.flatMap((g) => g.keys), ...backgroundImageKeySet]);
   const ungrouped = contents.filter((c) => !groupedKeys.has(c.key));
 
   function ContentCard({ c }: { c: (typeof contents)[number] }) {
@@ -93,6 +106,46 @@ export default async function AdminContentPage(props: PageProps<"/admin/content"
             </section>
           );
         })}
+
+        <section className="rounded-2xl border-2 border-zinc-200 p-5">
+          <h2 className="mb-1 text-base font-bold text-zinc-900">背景画像</h2>
+          <p className="mb-4 text-xs text-zinc-500">
+            各ページの背景に表示する画像のURLを設定できます(空欄なら背景画像なし)。
+            <a href="/admin/images" className="underline">画像管理</a>に登録済みのURLは入力欄で候補表示されます。
+          </p>
+          <datalist id="site-image-urls">
+            {siteImages.map((img) => (
+              <option key={img.id} value={img.url}>
+                {img.altText || img.folder || img.url}
+              </option>
+            ))}
+          </datalist>
+          <div className="space-y-4">
+            {BACKGROUND_IMAGE_KEYS.map(({ key, label }) => {
+              const c = byKey.get(key);
+              if (!c) return null;
+              return (
+                <form key={key} action={updateContentAction} className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
+                  <input type="hidden" name="key" value={key} />
+                  <label className="mb-2 block text-sm">
+                    <span className="mb-1 block text-zinc-600">{label}</span>
+                    <input
+                      type="text"
+                      name="value"
+                      list="site-image-urls"
+                      defaultValue={c.value}
+                      placeholder="https://..."
+                      className="w-full rounded-lg border border-zinc-200 px-3 py-1.5 text-sm"
+                    />
+                  </label>
+                  <button type="submit" className="rounded-full bg-zinc-900 px-3 py-1 text-xs font-semibold text-white hover:bg-zinc-700">
+                    保存
+                  </button>
+                </form>
+              );
+            })}
+          </div>
+        </section>
 
         {ungrouped.length > 0 && (
           <section className="rounded-2xl border-2 border-dashed border-zinc-300 p-5">

@@ -654,9 +654,17 @@ async function main() {
 
   const careStepKeywords = ["化粧水", "美容液(部分用)", "美容液", "クリーム", "乳液"];
   for (let i = 0; i < careStepKeywords.length; i++) {
-    const existing = await prisma.careStepOrder.findFirst({ where: { keyword: careStepKeywords[i] } });
+    const existing = await prisma.careStepOrder.findFirst({ where: { keyword: careStepKeywords[i], categoryId: null } });
     if (!existing) {
       await prisma.careStepOrder.create({ data: { keyword: careStepKeywords[i], sortOrder: i } });
+    }
+  }
+
+  console.log("FAQ初期データを投入中...");
+  for (let i = 0; i < faqDefaults.length; i++) {
+    const existing = await prisma.fAQItem.findFirst({ where: { question: faqDefaults[i].question } });
+    if (!existing) {
+      await prisma.fAQItem.create({ data: { ...faqDefaults[i], category: "product", sortOrder: i } });
     }
   }
 
@@ -696,6 +704,11 @@ const siteContentDefaults: { key: string; page: string; label: string; value: st
     label: "フッター注記",
     value: "会員登録は不要です。匿名でご利用いただけます。",
   },
+  { key: "home.background_image_url", page: "home", label: "背景画像URL(任意)", value: "" },
+  { key: "diagnosis.background_image_url", page: "diagnosis", label: "背景画像URL(任意)", value: "" },
+  { key: "result.background_image_url", page: "result", label: "背景画像URL(任意)", value: "" },
+  { key: "privacy.background_image_url", page: "privacy", label: "背景画像URL(任意)", value: "" },
+  { key: "faq.background_image_url", page: "faq", label: "背景画像URL(任意)", value: "" },
 
   { key: "diagnosis.step1_label", page: "diagnosis", label: "進捗ラベル(Step1)", value: "Step 1/3・基本情報" },
   {
@@ -790,6 +803,50 @@ const siteContentDefaults: { key: string; page: string; label: string; value: st
     page: "privacy",
     label: "制定日・最終更新日",
     value: "制定日: 【日付を設定してください】",
+  },
+];
+
+// FAQ初期データ(製品についてのFAQ)。出典: ニュースキン公式サイト(返品・交換、ADP定期購入ページ等)。
+// 2026-08-09追加(v5指示書1)。サイト固有FAQは運営者が管理画面から追加する空枠のため、ここには含めない。
+const faqDefaults: { question: string; answer: string }[] = [
+  {
+    question: "効果はどれくらいで実感できますか?",
+    answer:
+      "感じ方には個人差があり、お肌やお身体の状態、製品の種類によっても異なります。効果を保証するものではなく、まずは継続してお使いいただくことをおすすめします。気になる点があれば、LINEでご相談ください。",
+  },
+  {
+    question: "他のサプリメントや化粧品と併用しても大丈夫ですか?",
+    answer:
+      "基本的には他の製品と併用いただけますが、持病の治療中の方・お薬を服用中の方は、事前にかかりつけの医師にご相談ください。スキンケア製品は、初めてお使いになる際にパッチテストを行うと安心です。",
+  },
+  {
+    question: "妊娠中・授乳中でも使えますか?",
+    answer: "製品や個人の体調によって異なりますので、妊娠中・授乳中の方は、ご使用前にかかりつけの医師にご相談ください。",
+  },
+  {
+    question: "肌に合わない、体調に変化があった場合はどうすればいいですか?",
+    answer:
+      "すぐに使用を中止してください。赤み・かゆみなどの症状が続く場合は、皮膚科医などの専門家にご相談ください。ご不安な点があれば、LINEでもご相談いただけます。",
+  },
+  {
+    question: "サプリメントで病気を治すことはできますか?",
+    answer:
+      "サプリメントは医薬品ではないため、病気の診断・治療・予防を目的としたものではありません。健康や栄養バランスの維持を目的とした食品です。体調に不安がある場合は医療機関を受診してください。",
+  },
+  {
+    question: "返品・交換はできますか?",
+    answer:
+      "ニュースキンには会員規約に基づく返品・交換制度があり、契約から20日以内であればクーリングオフも可能です。返品方法は購入経路によって異なりますので、詳しくはLINEでご相談いただくか、ニュースキン公式サイトの返品・交換ページをご確認ください。",
+  },
+  {
+    question: "定期的にお得に購入する方法はありますか?",
+    answer:
+      "ニュースキン公式の定期購入プログラム「ADP(オートマティック デリバリー プログラム)」をご利用いただくと、6ヶ月目までは5%、7ヶ月目以降は10%の割引が受けられます(対象製品・条件あり)。お申し込み方法はLINEでご案内できます。",
+  },
+  {
+    question: "どこで購入すれば正規品を確実に買えますか?",
+    answer:
+      "正規品を確実に入手するには、ニュースキン公式サイトまたは正規のブランドメンバー(ディストリビューター)経由でのご購入をおすすめします。個人間売買や非正規のルートでの購入は、品質保証の対象外となる場合があります。ご購入方法はLINEでご案内できます。",
   },
 ];
 

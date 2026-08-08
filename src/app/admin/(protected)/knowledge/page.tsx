@@ -1,17 +1,21 @@
 import { prisma } from "@/lib/prisma";
 import {
+  createKnowledgeForCategoryAction,
+  deleteKnowledgeAction,
   publishCategoryNameDraftAction,
   publishKnowledgeDraftAction,
   saveCategoryNameDraftAction,
   saveKnowledgeDraftAction,
   updateKnowledgeAction,
 } from "../../actions";
+import { toggleCategoryActiveAction } from "../../flow-actions";
 
 export default async function AdminKnowledgePage(props: PageProps<"/admin/knowledge">) {
   const searchParams = await props.searchParams;
   const saved = searchParams?.saved === "1";
   const draftSaved = searchParams?.draftSaved === "1";
   const published = searchParams?.published === "1";
+  const created = searchParams?.created === "1";
 
   const genres = await prisma.genre.findMany({
     orderBy: { sortOrder: "asc" },
@@ -32,6 +36,7 @@ export default async function AdminKnowledgePage(props: PageProps<"/admin/knowle
       {saved && <p className="mb-6 rounded-lg bg-emerald-50 px-4 py-2 text-sm text-emerald-700">保存しました。</p>}
       {draftSaved && <p className="mb-6 rounded-lg bg-amber-50 px-4 py-2 text-sm text-amber-700">下書きを保存しました。</p>}
       {published && <p className="mb-6 rounded-lg bg-emerald-50 px-4 py-2 text-sm text-emerald-700">公開しました。</p>}
+      {created && <p className="mb-6 rounded-lg bg-emerald-50 px-4 py-2 text-sm text-emerald-700">Why/How情報を追加しました。</p>}
 
       <div className="space-y-10">
         {genres.map((genre) => (
@@ -46,7 +51,7 @@ export default async function AdminKnowledgePage(props: PageProps<"/admin/knowle
                       <span className="text-xs font-semibold text-zinc-500">カテゴリ名</span>
                       <span className="text-sm font-bold text-zinc-900">{category.name}</span>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="mb-3 flex items-center gap-2">
                       <form action={saveCategoryNameDraftAction} className="flex flex-1 items-center gap-2">
                         <input type="hidden" name="categoryId" value={category.categoryId} />
                         <input
@@ -69,19 +74,43 @@ export default async function AdminKnowledgePage(props: PageProps<"/admin/knowle
                         </form>
                       )}
                     </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                          category.isActive ? "bg-emerald-100 text-emerald-700" : "bg-zinc-200 text-zinc-500"
+                        }`}
+                      >
+                        {category.isActive ? "このカテゴリは表示中" : "このカテゴリは非表示"}
+                      </span>
+                      <form action={toggleCategoryActiveAction}>
+                        <input type="hidden" name="categoryId" value={category.categoryId} />
+                        <input type="hidden" name="returnTo" value="/admin/knowledge" />
+                        <button type="submit" className="rounded-full border border-amber-300 px-3 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50">
+                          {category.isActive ? "カテゴリを非表示にする" : "カテゴリを表示する"}
+                        </button>
+                      </form>
+                    </div>
                   </div>
 
                   {category.generalKnowledge.map((k) => (
                     <div key={k.knowledgeId}>
                       <div className="mb-3 flex items-center justify-between">
                         <span className="text-xs font-semibold text-zinc-500">Why / How</span>
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                            k.isSourceVerified ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
-                          }`}
-                        >
-                          {k.isSourceVerified ? "出典確認済み" : "出典未確認"}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                              k.isSourceVerified ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
+                            }`}
+                          >
+                            {k.isSourceVerified ? "出典確認済み" : "出典未確認"}
+                          </span>
+                          <form action={deleteKnowledgeAction}>
+                            <input type="hidden" name="knowledgeId" value={k.knowledgeId} />
+                            <button type="submit" className="rounded-full border border-rose-200 px-2 py-0.5 text-xs font-semibold text-rose-600 hover:bg-rose-50">
+                              削除する
+                            </button>
+                          </form>
+                        </div>
                       </div>
 
                       {/* 即時公開の編集フォーム */}
@@ -167,6 +196,15 @@ export default async function AdminKnowledgePage(props: PageProps<"/admin/knowle
                       </div>
                     </div>
                   ))}
+                  {category.generalKnowledge.length === 0 && (
+                    <form action={createKnowledgeForCategoryAction} className="rounded-lg border border-dashed border-zinc-300 p-3">
+                      <input type="hidden" name="categoryId" value={category.categoryId} />
+                      <p className="mb-2 text-xs text-zinc-400">このカテゴリにはWhy/How情報がありません。</p>
+                      <button type="submit" className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-600 hover:bg-zinc-200">
+                        Why/How情報を追加する
+                      </button>
+                    </form>
+                  )}
                 </div>
               ))}
             </div>

@@ -78,6 +78,7 @@ model ConcernCategory {
   optionMaps       OptionConcernMap[]
   questions        Question[]
   results          DiagnosisResult[]
+  careSteps        CareStepOrder[]
 
   @@map("concern_categories")
 }
@@ -226,12 +227,14 @@ model SiteImage {
 
 // ブランドカラー等のデザイン設定(単一行、id=1固定)
 model DesignSettings {
-  id              Int      @id @default(1)
-  primaryColorHex String   @default("#e11d48") @map("primary_color_hex")
-  logoUrl         String?  @map("logo_url")
-  faviconUrl      String?  @map("favicon_url")
-  buttonStyle     String   @default("rounded-full") @map("button_style") // "rounded-full" | "rounded-lg" | "square"
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  id               Int      @id @default(1)
+  primaryColorHex  String   @default("#e11d48") @map("primary_color_hex")
+  logoUrl          String?  @map("logo_url")
+  faviconUrl       String?  @map("favicon_url")
+  buttonStyle      String   @default("rounded-full") @map("button_style") // "rounded-full" | "rounded-lg" | "square"
+  bodyTextColorHex String?  @map("body_text_color_hex") // 本文テキストの色(未設定ならデフォルトのzinc系配色を使用)
+  fontFamily       String   @default("sans") @map("font_family") // "sans" | "serif" | "mono"
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
   @@map("design_settings")
 }
@@ -248,10 +251,29 @@ model LineSettings {
 }
 
 // 「おすすめのお手入れステップ」の並び順(旧: lib/diagnosis.tsのハードコード配列)
+// 2026-08-09追加: categoryIdを指定すると、そのカテゴリ専用の並び順になる(nullは全体共通のデフォルト)。
+// 結果画面では、そのカテゴリ専用の設定があれば優先し、無ければデフォルト(categoryId: null)にフォールバックする。
 model CareStepOrder {
-  id        Int    @id @default(autoincrement())
-  keyword   String // Product.categoryに部分一致させるキーワード
-  sortOrder Int    @map("sort_order")
+  id         Int     @id @default(autoincrement())
+  categoryId String? @map("category_id")
+  keyword    String // Product.categoryに部分一致させるキーワード
+  sortOrder  Int     @map("sort_order")
+
+  category ConcernCategory? @relation(fields: [categoryId], references: [categoryId], onDelete: Cascade)
 
   @@map("care_step_order")
+}
+
+// FAQ(よくある質問)。1問1問を個別に編集・並び替え・非表示にできる構造にする。
+// category: "product"(製品についてのFAQ、公式サイト情報ベース) | "site"(このサイト固有のFAQ、運営者が今後追加)
+model FAQItem {
+  id        Int      @id @default(autoincrement())
+  category  String
+  question  String
+  answer    String
+  sortOrder Int      @map("sort_order")
+  isActive  Boolean  @default(true) @map("is_active")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("faq_items")
 }

@@ -3,7 +3,11 @@ import {
   addBasicOptionAction,
   createCategoryAction,
   createGenreAction,
+  deleteCategoryAction,
+  deleteGenreAction,
   removeBasicOptionAction,
+  toggleCategoryActiveAction,
+  toggleGenreActiveAction,
   updateBasicOptionAction,
   updateBasicQuestionAction,
   updateCategoryAction,
@@ -12,6 +16,8 @@ import {
 
 const ERROR_MESSAGES: Record<string, string> = {
   missing: "名前を入力してください。",
+  genre_has_categories: "このジャンルには症状カテゴリが残っているため削除できません。先にカテゴリを削除してください。",
+  category_has_results: "このカテゴリは過去の診断結果で使われているため削除できません。「非表示にする」をご利用ください。",
 };
 
 export default async function AdminFlowPage(props: PageProps<"/admin/flow">) {
@@ -24,6 +30,12 @@ export default async function AdminFlowPage(props: PageProps<"/admin/flow">) {
     orderBy: { sortOrder: "asc" },
     include: { categories: { orderBy: { sortOrder: "asc" } } },
   });
+
+  const resultCounts = await prisma.diagnosisResult.groupBy({
+    by: ["categoryId"],
+    _count: { categoryId: true },
+  });
+  const resultCountByCategory = new Map(resultCounts.map((r) => [r.categoryId, r._count.categoryId]));
 
   const basicQuestions = await prisma.question.findMany({
     where: { step: 1 },
@@ -114,31 +126,54 @@ export default async function AdminFlowPage(props: PageProps<"/admin/flow">) {
         <div className="space-y-6">
           {genres.map((genre) => (
             <div key={genre.genreId} className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
-              <form action={updateGenreAction} className="mb-4 flex flex-wrap items-center gap-2 border-b border-zinc-100 pb-4">
-                <input type="hidden" name="genreId" value={genre.genreId} />
-                <input
-                  type="text"
-                  name="name"
-                  defaultValue={genre.name}
-                  className="flex-1 rounded-lg border border-zinc-200 px-3 py-1.5 text-sm font-semibold"
-                />
-                <label className="flex items-center gap-1 text-xs text-zinc-500">
-                  並び順
+              <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-zinc-100 pb-4">
+                <form action={updateGenreAction} className="flex flex-1 flex-wrap items-center gap-2">
+                  <input type="hidden" name="genreId" value={genre.genreId} />
                   <input
-                    type="number"
-                    name="sortOrder"
-                    defaultValue={genre.sortOrder}
-                    className="w-16 rounded-lg border border-zinc-200 px-2 py-1 text-sm"
+                    type="text"
+                    name="name"
+                    defaultValue={genre.name}
+                    className="flex-1 rounded-lg border border-zinc-200 px-3 py-1.5 text-sm font-semibold"
                   />
-                </label>
-                <label className="flex items-center gap-1 text-xs text-zinc-500">
-                  <input type="checkbox" name="isActive" defaultChecked={genre.isActive} />
-                  有効
-                </label>
-                <button type="submit" className="rounded-full bg-zinc-900 px-3 py-1 text-xs font-semibold text-white hover:bg-zinc-700">
-                  保存
-                </button>
-              </form>
+                  <label className="flex items-center gap-1 text-xs text-zinc-500">
+                    並び順
+                    <input
+                      type="number"
+                      name="sortOrder"
+                      defaultValue={genre.sortOrder}
+                      className="w-16 rounded-lg border border-zinc-200 px-2 py-1 text-sm"
+                    />
+                  </label>
+                  <input type="hidden" name="isActive" value={genre.isActive ? "on" : ""} />
+                  <button type="submit" className="rounded-full bg-zinc-900 px-3 py-1 text-xs font-semibold text-white hover:bg-zinc-700">
+                    保存
+                  </button>
+                </form>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                    genre.isActive ? "bg-emerald-100 text-emerald-700" : "bg-zinc-200 text-zinc-500"
+                  }`}
+                >
+                  {genre.isActive ? "表示中" : "非表示"}
+                </span>
+                <form action={toggleGenreActiveAction}>
+                  <input type="hidden" name="genreId" value={genre.genreId} />
+                  <button type="submit" className="rounded-full border border-amber-300 px-3 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50">
+                    {genre.isActive ? "非表示にする" : "表示する"}
+                  </button>
+                </form>
+                <form action={deleteGenreAction}>
+                  <input type="hidden" name="genreId" value={genre.genreId} />
+                  <button
+                    type="submit"
+                    disabled={genre.categories.length > 0}
+                    title={genre.categories.length > 0 ? "症状カテゴリが残っているため削除できません" : undefined}
+                    className="rounded-full border border-rose-200 px-3 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:text-zinc-300 disabled:hover:bg-transparent"
+                  >
+                    削除する
+                  </button>
+                </form>
+              </div>
 
               <div className="space-y-3 pl-2">
                 {genre.categories.map((cat) => (
@@ -166,10 +201,7 @@ export default async function AdminFlowPage(props: PageProps<"/admin/flow">) {
                             className="w-16 rounded-lg border border-zinc-200 px-2 py-1 text-sm"
                           />
                         </label>
-                        <label className="flex items-center gap-1 text-xs text-zinc-500">
-                          <input type="checkbox" name="isActive" defaultChecked={cat.isActive} />
-                          有効
-                        </label>
+                        <input type="hidden" name="isActive" value={cat.isActive ? "on" : ""} />
                       </div>
                       <label className="block text-xs text-zinc-500">
                         LINE誘導URL(個別、未設定なら共通設定を使用)
@@ -194,6 +226,37 @@ export default async function AdminFlowPage(props: PageProps<"/admin/flow">) {
                         保存
                       </button>
                     </form>
+                    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-zinc-100 pt-3">
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                          cat.isActive ? "bg-emerald-100 text-emerald-700" : "bg-zinc-200 text-zinc-500"
+                        }`}
+                      >
+                        {cat.isActive ? "表示中" : "非表示"}
+                      </span>
+                      <form action={toggleCategoryActiveAction}>
+                        <input type="hidden" name="categoryId" value={cat.categoryId} />
+                        <input type="hidden" name="returnTo" value="/admin/flow" />
+                        <button type="submit" className="rounded-full border border-amber-300 px-3 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50">
+                          {cat.isActive ? "非表示にする" : "表示する"}
+                        </button>
+                      </form>
+                      <form action={deleteCategoryAction}>
+                        <input type="hidden" name="categoryId" value={cat.categoryId} />
+                        <button
+                          type="submit"
+                          disabled={(resultCountByCategory.get(cat.categoryId) ?? 0) > 0}
+                          title={
+                            (resultCountByCategory.get(cat.categoryId) ?? 0) > 0
+                              ? "過去の診断結果で使われているため削除できません"
+                              : undefined
+                          }
+                          className="rounded-full border border-rose-200 px-3 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:text-zinc-300 disabled:hover:bg-transparent"
+                        >
+                          削除する
+                        </button>
+                      </form>
+                    </div>
                   </details>
                 ))}
 

@@ -3,7 +3,9 @@ import { PRODUCT_CATEGORIES } from "@/lib/product-categories";
 import {
   addCareStepAction,
   createProductAction,
+  deleteProductAction,
   removeCareStepAction,
+  toggleProductActiveAction,
   updateCareStepAction,
   updateProductAction,
 } from "../../actions";
@@ -19,7 +21,14 @@ export default async function AdminProductsPage(props: PageProps<"/admin/product
     orderBy: { productId: "asc" },
   });
 
-  const careSteps = await prisma.careStepOrder.findMany({ orderBy: { sortOrder: "asc" } });
+  const careSteps = await prisma.careStepOrder.findMany({ where: { categoryId: null }, orderBy: { sortOrder: "asc" } });
+
+  // 過去の診断結果(DiagnosisResult.recommendedProductIds、JSON配列)で参照されている製品IDの一覧
+  const pastResults = await prisma.diagnosisResult.findMany({ select: { recommendedProductIds: true } });
+  const referencedProductIds = new Set<number>();
+  for (const r of pastResults) {
+    for (const id of (r.recommendedProductIds as number[]) ?? []) referencedProductIds.add(id);
+  }
 
   return (
     <div>
@@ -32,11 +41,17 @@ export default async function AdminProductsPage(props: PageProps<"/admin/product
       {error === "duplicate" && (
         <p className="mb-6 rounded-lg bg-rose-50 px-4 py-2 text-sm text-rose-700">その製品コードは既に使われています。</p>
       )}
+      {error === "product_has_results" && (
+        <p className="mb-6 rounded-lg bg-rose-50 px-4 py-2 text-sm text-rose-700">
+          この製品は過去の診断結果で使われているため削除できません。「取扱中」のチェックを外して非表示にしてください。
+        </p>
+      )}
 
       <details className="mb-8 rounded-xl bg-white p-5 shadow-sm ring-1 ring-zinc-100">
-        <summary className="cursor-pointer font-semibold text-zinc-900">おすすめのお手入れステップの並び順</summary>
+        <summary className="cursor-pointer font-semibold text-zinc-900">おすすめのお手入れステップの並び順(全体共通のデフォルト)</summary>
         <p className="mt-2 mb-4 text-xs text-zinc-500">
           結果画面の「おすすめのお手入れステップ」に表示する順番です。製品のカテゴリ名にキーワードが含まれる製品が、この順序で並びます(キーワードに一致しない製品はステップ表示の対象外になります)。
+          症状カテゴリごとに個別の順番を設定したい場合は、<a href="/admin/mapping" className="underline">提案マッピング管理</a>から設定できます(未設定のカテゴリはここでの設定が使われます)。
         </p>
         <div className="mb-4 space-y-2">
           {careSteps.map((step) => (
@@ -180,10 +195,9 @@ export default async function AdminProductsPage(props: PageProps<"/admin/product
 
       <div className="space-y-6">
         {products.map((p) => (
+          <div key={p.productId} className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-zinc-100">
           <form
-            key={p.productId}
             action={updateProductAction}
-            className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-zinc-100"
           >
             <input type="hidden" name="productId" value={p.productId} />
             <div className="mb-3 flex items-center justify-between">
@@ -220,10 +234,12 @@ export default async function AdminProductsPage(props: PageProps<"/admin/product
               </label>
             </div>
 
-            <label className="mb-3 flex items-center gap-2 text-sm">
-              <input type="checkbox" name="isActive" defaultChecked={p.isActive} />
-              取扱中
-            </label>
+            <div className="mb-3 flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" name="isActive" defaultChecked={p.isActive} />
+                取扱中
+              </label>
+            </div>
 
             <label className="mb-3 block text-sm">
               <span className="mb-1 block text-zinc-600">臨床データ要約</span>
@@ -262,6 +278,34 @@ export default async function AdminProductsPage(props: PageProps<"/admin/product
               保存
             </button>
           </form>
+
+          <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-zinc-100 pt-4">
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                p.isActive ? "bg-emerald-100 text-emerald-700" : "bg-zinc-200 text-zinc-500"
+              }`}
+            >
+              {p.isActive ? "表示中" : "非表示"}
+            </span>
+            <form action={toggleProductActiveAction}>
+              <input type="hidden" name="productId" value={p.productId} />
+              <button type="submit" className="rounded-full border border-amber-300 px-3 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50">
+                {p.isActive ? "非表示にする" : "表示する"}
+              </button>
+            </form>
+            <form action={deleteProductAction}>
+              <input type="hidden" name="productId" value={p.productId} />
+              <button
+                type="submit"
+                disabled={referencedProductIds.has(p.productId)}
+                title={referencedProductIds.has(p.productId) ? "過去の診断結果で使われているため削除できません" : undefined}
+                className="rounded-full border border-rose-200 px-3 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:text-zinc-300 disabled:hover:bg-transparent"
+              >
+                削除する
+              </button>
+            </form>
+          </div>
+          </div>
         ))}
       </div>
     </div>

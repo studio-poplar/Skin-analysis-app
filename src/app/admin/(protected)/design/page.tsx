@@ -64,6 +64,40 @@ export default async function AdminDesignPage(props: PageProps<"/admin/design">)
         </label>
 
         <label className="block text-sm">
+          <span className="mb-1 block text-zinc-600">本文テキストの色(任意・未設定なら既定の配色)</span>
+          <div className="flex items-center gap-3">
+            <input
+              type="color"
+              defaultValue={design?.bodyTextColorHex ?? "#18181b"}
+              className="h-10 w-14 rounded-lg border border-zinc-200"
+              id="body-color-picker"
+            />
+            <input
+              type="text"
+              name="bodyTextColorHex"
+              defaultValue={design?.bodyTextColorHex ?? ""}
+              pattern="^#[0-9a-fA-F]{6}$"
+              placeholder="未設定"
+              className="w-32 rounded-lg border border-zinc-200 px-3 py-1.5 text-sm"
+              id="body-color-text"
+            />
+          </div>
+        </label>
+
+        <label className="block text-sm">
+          <span className="mb-1 block text-zinc-600">フォント</span>
+          <select
+            name="fontFamily"
+            defaultValue={design?.fontFamily ?? "sans"}
+            className="w-full rounded-lg border border-zinc-200 px-3 py-1.5 text-sm"
+          >
+            <option value="sans">ゴシック体(既定)</option>
+            <option value="serif">明朝体</option>
+            <option value="mono">等幅</option>
+          </select>
+        </label>
+
+        <label className="block text-sm">
           <span className="mb-1 block text-zinc-600">ロゴ画像URL(任意・現在のUIでは未使用、将来の拡張用)</span>
           <input
             type="url"
@@ -95,9 +129,16 @@ export default async function AdminDesignPage(props: PageProps<"/admin/design">)
             (function() {
               var picker = document.getElementById('color-picker');
               var text = document.getElementById('color-text');
-              if (!picker || !text) return;
-              picker.addEventListener('input', function() { text.value = picker.value; });
-              text.addEventListener('input', function() { if (/^#[0-9a-fA-F]{6}$/.test(text.value)) picker.value = text.value; });
+              if (picker && text) {
+                picker.addEventListener('input', function() { text.value = picker.value; });
+                text.addEventListener('input', function() { if (/^#[0-9a-fA-F]{6}$/.test(text.value)) picker.value = text.value; });
+              }
+              var bodyPicker = document.getElementById('body-color-picker');
+              var bodyText = document.getElementById('body-color-text');
+              if (bodyPicker && bodyText) {
+                bodyPicker.addEventListener('input', function() { bodyText.value = bodyPicker.value; });
+                bodyText.addEventListener('input', function() { if (/^#[0-9a-fA-F]{6}$/.test(bodyText.value)) bodyPicker.value = bodyText.value; });
+              }
             })();
           `,
         }}

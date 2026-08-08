@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { backgroundStyleFor } from "@/lib/background";
 import { getContentMap } from "@/lib/site-content";
 
 const CONTENT_KEYS = [
@@ -9,13 +10,14 @@ const CONTENT_KEYS = [
   "privacy.line_note",
   "privacy.contact",
   "privacy.updated_at",
+  "privacy.background_image_url",
 ];
 
 export default async function PrivacyPage() {
   const c = await getContentMap(CONTENT_KEYS);
 
   return (
-    <main className="flex flex-1 flex-col px-6 py-10">
+    <main className="flex flex-1 flex-col px-6 py-10" style={backgroundStyleFor(c["privacy.background_image_url"])}>
       <div className="mx-auto w-full max-w-md">
         <h1 className="mb-6 text-xl font-bold text-zinc-900">{c["privacy.heading"] ?? "プライバシーポリシー"}</h1>
 

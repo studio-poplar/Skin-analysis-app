@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { backgroundStyleFor } from "@/lib/background";
 import { prisma } from "@/lib/prisma";
 import { checkResultSessionStatus, getDiagnosisResult } from "@/lib/diagnosis";
 import { isPreviewMode } from "@/lib/preview";
@@ -18,6 +19,7 @@ const CONTENT_KEYS = [
   "result.care_steps_heading",
   "result.cta_intro",
   "result.back_to_top",
+  "result.background_image_url",
 ];
 
 export default async function DiagnosisResultPage(props: PageProps<"/diagnosis/result/[sessionId]">) {
@@ -63,7 +65,7 @@ export default async function DiagnosisResultPage(props: PageProps<"/diagnosis/r
   const allBlocks = result.genreGroups.flatMap((g) => g.categoryBlocks);
 
   return (
-    <main className="flex flex-1 flex-col px-6 py-10">
+    <main className="flex flex-1 flex-col px-6 py-10" style={backgroundStyleFor(c["result.background_image_url"])}>
       <div className="mx-auto w-full max-w-md">
         {preview && (
           <div className="mb-4 rounded-lg bg-amber-100 px-3 py-2 text-center text-xs font-semibold text-amber-800">
@@ -212,6 +214,9 @@ export default async function DiagnosisResultPage(props: PageProps<"/diagnosis/r
         <div className="mt-8 space-y-2 text-center">
           <Link href="/" className="block text-xs text-zinc-400 underline">
             {c["result.back_to_top"] ?? "トップに戻る"}
+          </Link>
+          <Link href="/faq" className="block text-xs text-zinc-400 underline">
+            よくある質問
           </Link>
           <Link href="/privacy" className="block text-xs text-zinc-400 underline">
             プライバシーポリシー

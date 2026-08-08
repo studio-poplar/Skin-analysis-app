@@ -137,6 +137,41 @@ export async function createProductAction(formData: FormData) {
   redirect("/admin/products?created=1");
 }
 
+export async function toggleProductActiveAction(formData: FormData) {
+  await assertRole("editor");
+
+  const productId = Number(formData.get("productId"));
+  const product = await prisma.product.findUnique({ where: { productId } });
+  if (product) {
+    await prisma.product.update({ where: { productId }, data: { isActive: !product.isActive } });
+  }
+
+  redirect("/admin/products?saved=1");
+}
+
+// 製品の物理削除は、過去の診断結果(DiagnosisResult.recommendedProductIds)で参照されている場合は行わない。
+// recommendedProductIdsはJSON配列(FK制約なし)のため、DB制約ではなくアプリ側でraw SQLのJSON包含検索によりチェックする。
+async function isProductReferencedInPastResults(productId: number): Promise<boolean> {
+  const rows = await prisma.$queryRaw<{ count: bigint }[]>`
+    SELECT COUNT(*)::bigint as count FROM diagnosis_results
+    WHERE recommended_product_ids @> ${JSON.stringify([productId])}::jsonb
+  `;
+  return Number(rows[0]?.count ?? 0) > 0;
+}
+
+export async function deleteProductAction(formData: FormData) {
+  await assertRole("editor");
+
+  const productId = Number(formData.get("productId"));
+  if (await isProductReferencedInPastResults(productId)) {
+    redirect("/admin/products?error=product_has_results");
+  }
+
+  await prisma.product.delete({ where: { productId } });
+
+  redirect("/admin/products?saved=1");
+}
+
 export async function updateKnowledgeAction(formData: FormData) {
   await assertRole("editor");
 
@@ -190,6 +225,28 @@ export async function publishKnowledgeDraftAction(formData: FormData) {
   }
 
   redirect("/admin/knowledge?published=1");
+}
+
+// GeneralKnowledgeはDiagnosisResultから直接参照されない(結果画面はcategoryId経由でその都度取得するだけ)ため、
+// 物理削除しても過去の診断結果セッションには影響しない。
+export async function deleteKnowledgeAction(formData: FormData) {
+  await assertRole("editor");
+
+  const knowledgeId = Number(formData.get("knowledgeId"));
+  await prisma.generalKnowledge.delete({ where: { knowledgeId } });
+
+  redirect("/admin/knowledge?saved=1");
+}
+
+export async function createKnowledgeForCategoryAction(formData: FormData) {
+  await assertRole("editor");
+
+  const categoryId = String(formData.get("categoryId"));
+  await prisma.generalKnowledge.create({
+    data: { categoryId, contentText: "", isSourceVerified: false },
+  });
+
+  redirect("/admin/knowledge?created=1");
 }
 
 export async function saveCategoryNameDraftAction(formData: FormData) {
@@ -260,12 +317,14 @@ export async function addCareStepAction(formData: FormData) {
   await assertRole("editor");
 
   const keyword = String(formData.get("keyword") ?? "").trim();
-  if (!keyword) redirect("/admin/products?error=missing");
+  const categoryId = String(formData.get("categoryId") ?? "").trim() || null;
+  const returnTo = String(formData.get("returnTo") ?? "/admin/products");
+  if (!keyword) redirect(`${returnTo}?error=missing`);
 
-  const count = await prisma.careStepOrder.count();
-  await prisma.careStepOrder.create({ data: { keyword, sortOrder: count } });
+  const count = await prisma.careStepOrder.count({ where: { categoryId } });
+  await prisma.careStepOrder.create({ data: { keyword, categoryId, sortOrder: count } });
 
-  redirect("/admin/products?saved=1");
+  redirect(`${returnTo}?saved=1`);
 }
 
 export async function updateCareStepAction(formData: FormData) {
@@ -274,19 +333,21 @@ export async function updateCareStepAction(formData: FormData) {
   const id = Number(formData.get("id"));
   const keyword = String(formData.get("keyword") ?? "").trim();
   const sortOrder = Number(formData.get("sortOrder")) || 0;
+  const returnTo = String(formData.get("returnTo") ?? "/admin/products");
 
   await prisma.careStepOrder.update({ where: { id }, data: { keyword, sortOrder } });
 
-  redirect("/admin/products?saved=1");
+  redirect(`${returnTo}?saved=1`);
 }
 
 export async function removeCareStepAction(formData: FormData) {
   await assertRole("editor");
 
   const id = Number(formData.get("id"));
+  const returnTo = String(formData.get("returnTo") ?? "/admin/products");
   await prisma.careStepOrder.delete({ where: { id } });
 
-  redirect("/admin/products?saved=1");
+  redirect(`${returnTo}?saved=1`);
 }
 
 export async function setOptionOverrideAction(formData: FormData) {

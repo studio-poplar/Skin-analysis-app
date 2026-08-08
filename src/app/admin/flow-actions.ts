@@ -82,6 +82,64 @@ export async function updateCategoryAction(formData: FormData) {
   redirect("/admin/flow?saved=1");
 }
 
+export async function toggleGenreActiveAction(formData: FormData) {
+  await assertRole("editor");
+
+  const genreId = String(formData.get("genreId"));
+  const genre = await prisma.genre.findUnique({ where: { genreId } });
+  if (genre) {
+    await prisma.genre.update({ where: { genreId }, data: { isActive: !genre.isActive } });
+  }
+
+  redirect("/admin/flow?saved=1");
+}
+
+// ジャンルの物理削除は、配下の症状カテゴリが残っている場合は行わない
+// (先にカテゴリを全て削除/移動してもらう必要がある。過去のDiagnosisResultはcategoryId経由でのみ参照するため)
+export async function deleteGenreAction(formData: FormData) {
+  await assertRole("editor");
+
+  const genreId = String(formData.get("genreId"));
+  const categoryCount = await prisma.concernCategory.count({ where: { genreId } });
+  if (categoryCount > 0) {
+    redirect("/admin/flow?error=genre_has_categories");
+  }
+
+  await prisma.genre.delete({ where: { genreId } });
+
+  redirect("/admin/flow?saved=1");
+}
+
+export async function toggleCategoryActiveAction(formData: FormData) {
+  await assertRole("editor");
+
+  const categoryId = String(formData.get("categoryId"));
+  const category = await prisma.concernCategory.findUnique({ where: { categoryId } });
+  if (category) {
+    await prisma.concernCategory.update({ where: { categoryId }, data: { isActive: !category.isActive } });
+  }
+
+  const returnTo = String(formData.get("returnTo") ?? "/admin/flow");
+  redirect(`${returnTo}?saved=1`);
+}
+
+// 症状カテゴリの物理削除は、過去の診断結果(DiagnosisResult)で参照されている場合は行わない。
+// 紐付く一般知識(GeneralKnowledge)・製品マッピング(ProductConcernMap)・お手入れステップ設定(CareStepOrder)は
+// スキーマ上onDelete: Cascadeのため自動的に削除される(現在の設定データであり、履歴データではないため問題ない)。
+export async function deleteCategoryAction(formData: FormData) {
+  await assertRole("editor");
+
+  const categoryId = String(formData.get("categoryId"));
+  const resultCount = await prisma.diagnosisResult.count({ where: { categoryId } });
+  if (resultCount > 0) {
+    redirect("/admin/flow?error=category_has_results");
+  }
+
+  await prisma.concernCategory.delete({ where: { categoryId } });
+
+  redirect("/admin/flow?saved=1");
+}
+
 export async function updateBasicQuestionAction(formData: FormData) {
   await assertRole("editor");
 
