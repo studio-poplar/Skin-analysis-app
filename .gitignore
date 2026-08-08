@@ -46,3 +46,6 @@ next-env.d.ts
 *.log
 cloudflared.exe
 sqlite-export-*.json
+
+.vercel
+.env*
