@@ -615,6 +615,61 @@ async function main() {
   const q1Gender = await getOrCreateQuestion(1, "性別を教えてください", QuestionType.single_select, null);
   await getOrCreateOptions(q1Gender.questionId, ["女性", "男性", "回答しない"]);
 
+  console.log("質問(ライフスタイル、2026-08-09追加)を投入中...");
+  const q2SkincareRoutine = await getOrCreateQuestion(2, "普段のスキンケアについて教えてください", QuestionType.single_select, null);
+  await getOrCreateOptions(q2SkincareRoutine.questionId, [
+    "特に何もしていない",
+    "洗顔・保湿など基本的なケアのみ",
+    "美容液やパックなど、部分的なケアも取り入れている",
+    "美顔器などの美容機器も使ってしっかりケアしている",
+    "エステ・サロンなど専門的なケアも受けている",
+  ]);
+
+  const q2SkincareBudget = await getOrCreateQuestion(2, "スキンケアにかけている月々の費用の目安を教えてください", QuestionType.single_select, null);
+  await getOrCreateOptions(q2SkincareBudget.questionId, [
+    "3,000円未満",
+    "3,000円〜10,000円未満",
+    "10,000円〜30,000円未満",
+    "30,000円〜50,000円未満",
+    "50,000円以上",
+  ]);
+
+  const q2SkincarePriority = await getOrCreateQuestion(2, "スキンケア製品を選ぶときに、特に重視することを教えてください", QuestionType.multi_select, null);
+  await getOrCreateOptions(q2SkincarePriority.questionId, [
+    "価格の手頃さ",
+    "効果・実感のしやすさ",
+    "科学的根拠・成分の信頼性",
+    "口コミ・評判",
+    "ブランド・企業への信頼",
+  ]);
+
+  const q2SupplementUsage = await getOrCreateQuestion(2, "普段のサプリメント摂取について教えてください", QuestionType.single_select, null);
+  await getOrCreateOptions(q2SupplementUsage.questionId, [
+    "摂取していない",
+    "市販のマルチビタミン等を摂取している",
+    "美容系サプリ(コラーゲン等)を摂取している",
+    "ニュースキンのサプリメントを摂取している",
+    "複数のサプリメントを組み合わせて摂取している",
+  ]);
+
+  const q2SupplementBudget = await getOrCreateQuestion(2, "サプリメントにかけている月々の費用の目安を教えてください", QuestionType.single_select, null);
+  await getOrCreateOptions(q2SupplementBudget.questionId, [
+    "3,000円未満",
+    "3,000円〜10,000円未満",
+    "10,000円〜30,000円未満",
+    "30,000円〜50,000円未満",
+    "50,000円以上",
+  ]);
+
+  const q2SupplementPriority = await getOrCreateQuestion(2, "サプリメントを選ぶときに、特に重視することを教えてください", QuestionType.multi_select, null);
+  await getOrCreateOptions(q2SupplementPriority.questionId, [
+    "価格の手頃さ",
+    "効果・実感のしやすさ",
+    "科学的根拠・成分の信頼性",
+    "口コミ・評判",
+    "ブランド・企業への信頼",
+  ]);
+
   console.log("管理者アカウントを投入中...");
   const existingAdmin = await prisma.adminUser.findUnique({ where: { username: "admin" } });
   if (!existingAdmin) {
@@ -710,7 +765,7 @@ const siteContentDefaults: { key: string; page: string; label: string; value: st
   { key: "privacy.background_image_url", page: "privacy", label: "背景画像URL(任意)", value: "" },
   { key: "faq.background_image_url", page: "faq", label: "背景画像URL(任意)", value: "" },
 
-  { key: "diagnosis.step1_label", page: "diagnosis", label: "進捗ラベル(Step1)", value: "Step 1/3・基本情報" },
+  { key: "diagnosis.step1_label", page: "diagnosis", label: "進捗ラベル(Step1)", value: "Step 1/4・基本情報" },
   {
     key: "diagnosis.step1_heading",
     page: "diagnosis",
@@ -719,7 +774,20 @@ const siteContentDefaults: { key: string; page: string; label: string; value: st
   },
   { key: "diagnosis.age_label", page: "diagnosis", label: "年代ラベル", value: "年代" },
   { key: "diagnosis.gender_label", page: "diagnosis", label: "性別ラベル", value: "性別" },
-  { key: "diagnosis.step2_label", page: "diagnosis", label: "進捗ラベル(Step2)", value: "Step 2/3・気になること" },
+  { key: "diagnosis.lifestyle_label", page: "diagnosis", label: "進捗ラベル(ライフスタイル)", value: "Step 2/4・ライフスタイル" },
+  {
+    key: "diagnosis.lifestyle_heading",
+    page: "diagnosis",
+    label: "ライフスタイルStep見出し",
+    value: "普段のケア習慣について教えてください",
+  },
+  {
+    key: "diagnosis.lifestyle_intro",
+    page: "diagnosis",
+    label: "ライフスタイルStep案内文",
+    value: "今後のご提案の参考にするため、すべての質問にお答えください。",
+  },
+  { key: "diagnosis.step2_label", page: "diagnosis", label: "進捗ラベル(Step2)", value: "Step 3/4・気になること" },
   {
     key: "diagnosis.step2_heading",
     page: "diagnosis",

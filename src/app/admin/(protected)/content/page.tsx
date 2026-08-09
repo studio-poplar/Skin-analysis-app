@@ -7,8 +7,9 @@ import { publishContentDraftAction, saveContentDraftAction, updateContentAction 
 const STEP_GROUPS: { title: string; keys: string[] }[] = [
   { title: "Step1: ホーム", keys: ["home.badge", "home.heading_line1", "home.heading_line2", "home.intro", "home.step1", "home.step2", "home.step3", "home.cta_button", "home.footer_note"] },
   { title: "Step2: 基本情報(年代・性別)", keys: ["diagnosis.step1_label", "diagnosis.step1_heading", "diagnosis.age_label", "diagnosis.gender_label", "diagnosis.next_button"] },
-  { title: "Step3・4: 気になること・症状の深掘り", keys: ["diagnosis.step2_label", "diagnosis.step2_heading", "diagnosis.multi_select_hint", "diagnosis.symptom_heading_template", "diagnosis.next_button", "diagnosis.submit_button", "diagnosis.loading_text"] },
-  { title: "Step5: 改善策の提案(結果画面)", keys: ["result.eyebrow", "result.heading", "result.summary_label", "result.why_label", "result.how_label", "result.support_label", "result.support_empty", "result.care_steps_heading", "result.cta_intro", "result.back_to_top"] },
+  { title: "Step3: ライフスタイル(スキンケア・サプリメント、2026-08-09追加)", keys: ["diagnosis.lifestyle_label", "diagnosis.lifestyle_heading", "diagnosis.lifestyle_intro", "diagnosis.multi_select_hint", "diagnosis.next_button"] },
+  { title: "Step4・5: 気になること・症状の深掘り", keys: ["diagnosis.step2_label", "diagnosis.step2_heading", "diagnosis.multi_select_hint", "diagnosis.symptom_heading_template", "diagnosis.next_button", "diagnosis.submit_button", "diagnosis.loading_text"] },
+  { title: "Step6: 改善策の提案(結果画面)", keys: ["result.eyebrow", "result.heading", "result.summary_label", "result.why_label", "result.how_label", "result.support_label", "result.support_empty", "result.care_steps_heading", "result.cta_intro", "result.back_to_top"] },
 ];
 
 // ページごとの背景画像URL。SiteImage(画像管理)に登録したURLからも選べるよう<datalist>で補助する。

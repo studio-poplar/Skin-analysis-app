@@ -1,8 +1,19 @@
 import { prisma } from "@/lib/prisma";
 
+export type LifestyleQuestion = {
+  questionId: number;
+  questionText: string;
+  questionType: "single_select" | "multi_select";
+  options: { optionId: number; text: string }[];
+};
+
 export type DiagnosisFormData = {
   ageQuestion: { questionId: number; options: { optionId: number; text: string }[] };
   genderQuestion: { questionId: number; options: { optionId: number; text: string }[] };
+  // 2026-08-09追加(v7): ②基本情報の直後の「ライフスタイル」Step用の6問。
+  // 登録順(questionId昇順)で常に「①スキンケア習慣・②スキンケア予算・③スキンケア重視点・
+  // ④サプリメント習慣・⑤サプリメント予算・⑥サプリメント重視点」の並びになる想定(節7-14参照)。
+  lifestyleQuestions: LifestyleQuestion[];
   genres: {
     genreId: string;
     name: string;
@@ -12,10 +23,16 @@ export type DiagnosisFormData = {
 
 // 診断フォームの初期表示に必要な質問・ジャンル・症状カテゴリ一式を取得する
 export async function getDiagnosisFormData(): Promise<DiagnosisFormData> {
-  const [basicQuestions, genres] = await Promise.all([
+  const [basicQuestions, lifestyleQuestions, genres] = await Promise.all([
     // ①基本情報の質問文は管理画面から自由に編集できるため、questionTextではなくstep内の登録順(questionId昇順、年代→性別の順で投入される)で識別する
     prisma.question.findMany({
       where: { step: 1 },
+      orderBy: { questionId: "asc" },
+      include: { options: { orderBy: { sortOrder: "asc" } } },
+    }),
+    // ライフスタイル設問(step:2)も同様に登録順で識別する
+    prisma.question.findMany({
+      where: { step: 2 },
       orderBy: { questionId: "asc" },
       include: { options: { orderBy: { sortOrder: "asc" } } },
     }),
@@ -41,6 +58,12 @@ export async function getDiagnosisFormData(): Promise<DiagnosisFormData> {
       questionId: genderQuestion.questionId,
       options: genderQuestion.options.map((o) => ({ optionId: o.optionId, text: o.optionText })),
     },
+    lifestyleQuestions: lifestyleQuestions.map((q) => ({
+      questionId: q.questionId,
+      questionText: q.questionText,
+      questionType: q.questionType,
+      options: q.options.map((o) => ({ optionId: o.optionId, text: o.optionText })),
+    })),
     genres: genres.map((g) => ({
       genreId: g.genreId,
       name: g.name,
@@ -52,6 +75,11 @@ export async function getDiagnosisFormData(): Promise<DiagnosisFormData> {
 export type SubmitDiagnosisInput = {
   ageOptionId: number | null;
   genderOptionId: number | null;
+  // ライフスタイル設問(step:2、6問)への回答。単一選択もoptionIds配列(長さ1)で統一して扱う。
+  lifestyleAnswers: { questionId: number; optionIds: number[] }[];
+  // 自由記述(未回答可)。個人情報を書かないよう入力欄側でプレースホルダー注記している(節7-14参照)。
+  skincareBrandFreeText: string;
+  supplementBrandFreeText: string;
   selectedGenreIds: string[];
   selectedCategoryIds: string[]; // 選択されたジャンルの中から選んだ症状カテゴリ(フラット)
 };

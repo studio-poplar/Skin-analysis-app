@@ -56,7 +56,12 @@ function NextButton({ disabled, onClick, label = "次へ" }: { disabled: boolean
   );
 }
 
-type Step = { kind: "basic" } | { kind: "genre" } | { kind: "symptom"; index: number } | { kind: "submitting" };
+type Step =
+  | { kind: "basic" }
+  | { kind: "lifestyle" }
+  | { kind: "genre" }
+  | { kind: "symptom"; index: number }
+  | { kind: "submitting" };
 
 export function DiagnosisWizard({ data, copy }: { data: DiagnosisFormData; copy: Record<string, string> }) {
   const router = useRouter();
@@ -64,9 +69,24 @@ export function DiagnosisWizard({ data, copy }: { data: DiagnosisFormData; copy:
   const [step, setStep] = useState<Step>({ kind: "basic" });
   const [ageOptionId, setAgeOptionId] = useState<number | null>(null);
   const [genderOptionId, setGenderOptionId] = useState<number | null>(null);
+  const [lifestyleAnswers, setLifestyleAnswers] = useState<Record<number, number[]>>({});
+  const [skincareBrandFreeText, setSkincareBrandFreeText] = useState("");
+  const [supplementBrandFreeText, setSupplementBrandFreeText] = useState("");
   const [selectedGenreIds, setSelectedGenreIds] = useState<string[]>([]);
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  function selectLifestyleOption(questionId: number, optionId: number, isMulti: boolean) {
+    setLifestyleAnswers((prev) => {
+      const current = prev[questionId] ?? [];
+      const next = isMulti
+        ? current.includes(optionId)
+          ? current.filter((id) => id !== optionId)
+          : [...current, optionId]
+        : [optionId];
+      return { ...prev, [questionId]: next };
+    });
+  }
 
   const orderedSelectedGenres = useMemo(
     () => data.genres.filter((g) => selectedGenreIds.includes(g.genreId)),
@@ -101,6 +121,12 @@ export function DiagnosisWizard({ data, copy }: { data: DiagnosisFormData; copy:
         const { sessionId } = await submitDiagnosisAction({
           ageOptionId,
           genderOptionId,
+          lifestyleAnswers: data.lifestyleQuestions.map((q) => ({
+            questionId: q.questionId,
+            optionIds: lifestyleAnswers[q.questionId] ?? [],
+          })),
+          skincareBrandFreeText,
+          supplementBrandFreeText,
           selectedGenreIds,
           selectedCategoryIds,
         });
@@ -115,7 +141,7 @@ export function DiagnosisWizard({ data, copy }: { data: DiagnosisFormData; copy:
   if (step.kind === "basic") {
     return (
       <div>
-        <ProgressBar stepLabel={copy["diagnosis.step1_label"] ?? "Step 1/3・基本情報"} percent={10} />
+        <ProgressBar stepLabel={copy["diagnosis.step1_label"] ?? "Step 1/4・基本情報"} percent={10} />
         <h2 className="mb-6 text-lg font-bold text-zinc-900">
           {copy["diagnosis.step1_heading"] ?? "まずは基本的なことを教えてください"}
         </h2>
@@ -147,6 +173,88 @@ export function DiagnosisWizard({ data, copy }: { data: DiagnosisFormData; copy:
         <NextButton
           disabled={!ageOptionId || !genderOptionId}
           label={copy["diagnosis.next_button"] ?? "次へ"}
+          onClick={() => setStep({ kind: "lifestyle" })}
+        />
+      </div>
+    );
+  }
+
+  if (step.kind === "lifestyle") {
+    const allAnswered = data.lifestyleQuestions.every((q) => (lifestyleAnswers[q.questionId]?.length ?? 0) > 0);
+
+    return (
+      <div>
+        <ProgressBar stepLabel={copy["diagnosis.lifestyle_label"] ?? "Step 2/4・ライフスタイル"} percent={25} />
+        <h2 className="mb-1 text-lg font-bold text-zinc-900">
+          {copy["diagnosis.lifestyle_heading"] ?? "普段のケア習慣について教えてください"}
+        </h2>
+        <p className="mb-6 text-xs text-zinc-500">
+          {copy["diagnosis.lifestyle_intro"] ?? "今後のご提案の参考にするため、すべての質問にお答えください。"}
+        </p>
+
+        <div className="space-y-8">
+          {data.lifestyleQuestions.map((q, qIndex) => {
+            const selected = lifestyleAnswers[q.questionId] ?? [];
+            const isMulti = q.questionType === "multi_select";
+            const firstOptionId = q.options[0]?.optionId;
+            const noneOfTheAboveSelected = selected.length === 1 && selected[0] === firstOptionId;
+            // スキンケア習慣(1問目)・サプリメント摂取(4問目)の直後にのみ、任意のメーカー自由記述欄を出す。
+            // 各質問の選択肢1(「特に何もしていない」「摂取していない」)を選んでいる間は隠す。
+            const showSkincareFreeText = qIndex === 0 && !noneOfTheAboveSelected;
+            const showSupplementFreeText = qIndex === 3 && !noneOfTheAboveSelected;
+
+            return (
+              <div key={q.questionId}>
+                <p className="mb-2 text-sm font-semibold text-zinc-700">{q.questionText}</p>
+                {isMulti && (
+                  <p className="mb-2 text-xs text-zinc-500">{copy["diagnosis.multi_select_hint"] ?? "いくつでも選択できます"}</p>
+                )}
+                <div className="grid grid-cols-1 gap-2">
+                  {q.options.map((o) => (
+                    <OptionButton
+                      key={o.optionId}
+                      label={o.text}
+                      selected={selected.includes(o.optionId)}
+                      onClick={() => selectLifestyleOption(q.questionId, o.optionId, isMulti)}
+                    />
+                  ))}
+                </div>
+                {showSkincareFreeText && (
+                  <label className="mt-3 block text-sm">
+                    <span className="mb-1 block text-xs font-medium text-zinc-500">
+                      現在お使いのスキンケア製品のメーカーがあれば教えてください(任意)
+                    </span>
+                    <input
+                      type="text"
+                      value={skincareBrandFreeText}
+                      onChange={(e) => setSkincareBrandFreeText(e.target.value)}
+                      placeholder="例: 〇〇製薬、△△コスメ(個人情報は入力しないでください)"
+                      className="w-full rounded-xl border border-zinc-200 px-4 py-2.5 text-sm"
+                    />
+                  </label>
+                )}
+                {showSupplementFreeText && (
+                  <label className="mt-3 block text-sm">
+                    <span className="mb-1 block text-xs font-medium text-zinc-500">
+                      現在お使いのサプリメントのメーカーがあれば教えてください(任意)
+                    </span>
+                    <input
+                      type="text"
+                      value={supplementBrandFreeText}
+                      onChange={(e) => setSupplementBrandFreeText(e.target.value)}
+                      placeholder="例: 〇〇製薬、△△コスメ(個人情報は入力しないでください)"
+                      className="w-full rounded-xl border border-zinc-200 px-4 py-2.5 text-sm"
+                    />
+                  </label>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        <NextButton
+          disabled={!allAnswered}
+          label={copy["diagnosis.next_button"] ?? "次へ"}
           onClick={() => setStep({ kind: "genre" })}
         />
       </div>
@@ -156,7 +264,7 @@ export function DiagnosisWizard({ data, copy }: { data: DiagnosisFormData; copy:
   if (step.kind === "genre") {
     return (
       <div>
-        <ProgressBar stepLabel={copy["diagnosis.step2_label"] ?? "Step 2/3・気になること"} percent={40} />
+        <ProgressBar stepLabel={copy["diagnosis.step2_label"] ?? "Step 3/4・気になること"} percent={50} />
         <h2 className="mb-1 text-lg font-bold text-zinc-900">
           {copy["diagnosis.step2_heading"] ?? "今、気になることはどれですか?"}
         </h2>
@@ -196,8 +304,8 @@ export function DiagnosisWizard({ data, copy }: { data: DiagnosisFormData; copy:
     return (
       <div>
         <ProgressBar
-          stepLabel={`Step 3/3・${step.index + 1}/${orderedSelectedGenres.length}分野中`}
-          percent={50 + (45 * (step.index + 1)) / orderedSelectedGenres.length}
+          stepLabel={`Step 4/4・${step.index + 1}/${orderedSelectedGenres.length}分野中`}
+          percent={65 + (30 * (step.index + 1)) / orderedSelectedGenres.length}
         />
         <h2 className="mb-1 text-lg font-bold text-zinc-900">{symptomHeading}</h2>
         <p className="mb-6 text-xs text-zinc-500">{copy["diagnosis.multi_select_hint"] ?? "いくつでも選択できます"}</p>
