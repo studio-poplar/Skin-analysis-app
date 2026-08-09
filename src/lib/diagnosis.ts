@@ -20,13 +20,11 @@ export type DiagnosisFormData = {
     name: string;
     categories: { categoryId: string; name: string }[];
   }[];
-  // v9追加: ③ライフスタイル設問を④気になること・症状の深掘りより前に出すかどうか(管理画面で切替可能)
-  lifestyleBeforeGenre: boolean;
 };
 
 // 診断フォームの初期表示に必要な質問・ジャンル・症状カテゴリ一式を取得する
 export async function getDiagnosisFormData(): Promise<DiagnosisFormData> {
-  const [basicQuestions, lifestyleQuestions, genres, flowSettings] = await Promise.all([
+  const [basicQuestions, lifestyleQuestions, genres] = await Promise.all([
     // 表示順は管理画面でドラッグ&ドロップ並び替え可能な sortOrder に従う(v8)。
     // 「年代」「性別」どちらかの識別はroleで行う(questionTextや並び順には依存しない)。
     prisma.question.findMany({
@@ -45,7 +43,6 @@ export async function getDiagnosisFormData(): Promise<DiagnosisFormData> {
       orderBy: { sortOrder: "asc" },
       include: { categories: { where: { isActive: true }, orderBy: { sortOrder: "asc" } } },
     }),
-    prisma.diagnosisFlowSettings.findUnique({ where: { id: 1 } }),
   ]);
 
   const hasAge = basicQuestions.some((q) => q.role === "age");
@@ -75,8 +72,6 @@ export async function getDiagnosisFormData(): Promise<DiagnosisFormData> {
       name: g.name,
       categories: g.categories.map((c) => ({ categoryId: c.categoryId, name: c.name })),
     })),
-    // 行が無い(未投入)場合は元々の既定順(ライフスタイル→気になること)を維持する
-    lifestyleBeforeGenre: flowSettings?.lifestyleBeforeGenre ?? true,
   };
 }
 

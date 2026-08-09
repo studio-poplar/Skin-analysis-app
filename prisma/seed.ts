@@ -733,12 +733,6 @@ async function main() {
     create: { id: 1, primaryColorHex: "#e11d48", buttonStyle: "rounded-full" },
   });
 
-  await prisma.diagnosisFlowSettings.upsert({
-    where: { id: 1 },
-    update: {},
-    create: { id: 1, lifestyleBeforeGenre: true },
-  });
-
   await prisma.lineSettings.upsert({
     where: { id: 1 },
     update: {},
