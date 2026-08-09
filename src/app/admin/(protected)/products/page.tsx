@@ -1,14 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { PRODUCT_CATEGORIES } from "@/lib/product-categories";
-import {
-  addCareStepAction,
-  createProductAction,
-  deleteProductAction,
-  removeCareStepAction,
-  toggleProductActiveAction,
-  updateCareStepAction,
-  updateProductAction,
-} from "../../actions";
+import { createProductAction, deleteProductAction, toggleProductActiveAction, updateProductAction } from "../../actions";
 
 export default async function AdminProductsPage(props: PageProps<"/admin/products">) {
   const searchParams = await props.searchParams;
@@ -20,8 +12,6 @@ export default async function AdminProductsPage(props: PageProps<"/admin/product
     include: { clinicalData: true },
     orderBy: { productId: "asc" },
   });
-
-  const careSteps = await prisma.careStepOrder.findMany({ where: { categoryId: null }, orderBy: { sortOrder: "asc" } });
 
   // 過去の診断結果(DiagnosisResult.recommendedProductIds、JSON配列)で参照されている製品IDの一覧
   const pastResults = await prisma.diagnosisResult.findMany({ select: { recommendedProductIds: true } });
@@ -46,55 +36,6 @@ export default async function AdminProductsPage(props: PageProps<"/admin/product
           この製品は過去の診断結果で使われているため削除できません。「取扱中」のチェックを外して非表示にしてください。
         </p>
       )}
-
-      <details className="mb-8 rounded-xl bg-white p-5 shadow-sm ring-1 ring-zinc-100">
-        <summary className="cursor-pointer font-semibold text-zinc-900">おすすめのお手入れステップの並び順(全体共通のデフォルト)</summary>
-        <p className="mt-2 mb-4 text-xs text-zinc-500">
-          結果画面の「おすすめのお手入れステップ」に表示する順番です。製品のカテゴリ名にキーワードが含まれる製品が、この順序で並びます(キーワードに一致しない製品はステップ表示の対象外になります)。
-          症状カテゴリごとに個別の順番を設定したい場合は、<a href="/admin/mapping" className="underline">提案マッピング管理</a>から設定できます(未設定のカテゴリはここでの設定が使われます)。
-        </p>
-        <div className="mb-4 space-y-2">
-          {careSteps.map((step) => (
-            <div key={step.id} className="flex items-center gap-2">
-              <form action={updateCareStepAction} className="flex flex-1 items-center gap-2">
-                <input type="hidden" name="id" value={step.id} />
-                <input
-                  type="number"
-                  name="sortOrder"
-                  defaultValue={step.sortOrder}
-                  className="w-16 rounded-lg border border-zinc-200 px-2 py-1.5 text-sm"
-                />
-                <input
-                  type="text"
-                  name="keyword"
-                  defaultValue={step.keyword}
-                  className="flex-1 rounded-lg border border-zinc-200 px-3 py-1.5 text-sm"
-                />
-                <button type="submit" className="rounded-full border border-zinc-300 px-3 py-1 text-xs font-semibold text-zinc-600 hover:bg-zinc-50">
-                  保存
-                </button>
-              </form>
-              <form action={removeCareStepAction}>
-                <input type="hidden" name="id" value={step.id} />
-                <button type="submit" className="rounded-full border border-rose-200 px-3 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50">
-                  削除
-                </button>
-              </form>
-            </div>
-          ))}
-        </div>
-        <form action={addCareStepAction} className="flex items-center gap-2">
-          <input
-            type="text"
-            name="keyword"
-            placeholder="新しいキーワード(例: 化粧水)"
-            className="flex-1 rounded-lg border border-dashed border-zinc-300 px-3 py-1.5 text-sm"
-          />
-          <button type="submit" className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-600 hover:bg-zinc-200">
-            追加
-          </button>
-        </form>
-      </details>
 
       <details className="mb-8 rounded-xl bg-white p-5 shadow-sm ring-1 ring-zinc-100">
         <summary className="cursor-pointer font-semibold text-zinc-900">新しい製品を追加</summary>
