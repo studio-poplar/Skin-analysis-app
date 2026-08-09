@@ -285,6 +285,10 @@ export async function addCategoryProductAction(formData: FormData) {
   const productId = Number(formData.get("productId"));
   const priority = Number(formData.get("priority")) || 1;
 
+  if (!productId || Number.isNaN(productId)) {
+    redirect("/admin/mapping?error=missing_product");
+  }
+
   const existing = await prisma.productConcernMap.findFirst({ where: { categoryId, productId } });
   if (!existing) {
     await prisma.productConcernMap.create({ data: { categoryId, productId, priority } });

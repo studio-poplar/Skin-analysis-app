@@ -8,10 +8,16 @@ import {
   updateCareStepAction,
   updateCategoryProductPriorityAction,
 } from "../../actions";
+import { ProductPicker } from "./ProductPicker";
+
+const ERROR_MESSAGES: Record<string, string> = {
+  missing_product: "追加する製品を検索欄から選択してください。",
+};
 
 export default async function AdminMappingPage(props: PageProps<"/admin/mapping">) {
   const searchParams = await props.searchParams;
   const saved = searchParams?.saved === "1";
+  const errorKey = typeof searchParams?.error === "string" ? searchParams.error : undefined;
 
   const [genres, products, q3Questions, careSteps] = await Promise.all([
     prisma.genre.findMany({
@@ -54,6 +60,11 @@ export default async function AdminMappingPage(props: PageProps<"/admin/mapping"
         各カテゴリでおすすめする製品と優先順位(数字が小さいほど優先)を設定します。深掘り質問がある回答ごとに、優先順位を無視して特定の製品を指定することもできます。
       </p>
       {saved && <p className="mb-6 rounded-lg bg-emerald-50 px-4 py-2 text-sm text-emerald-700">保存しました。</p>}
+      {errorKey && (
+        <p className="mb-6 rounded-lg bg-rose-50 px-4 py-2 text-sm text-rose-700">
+          {ERROR_MESSAGES[errorKey] ?? "エラーが発生しました。"}
+        </p>
+      )}
 
       <div className="space-y-10">
         {genres.map((genre) => (
@@ -162,13 +173,7 @@ export default async function AdminMappingPage(props: PageProps<"/admin/mapping"
               {addableProducts.length > 0 && (
                 <form action={addCategoryProductAction} className="mb-4 flex items-center gap-2">
                   <input type="hidden" name="categoryId" value={category.categoryId} />
-                  <select name="productId" className="flex-1 rounded-lg border border-zinc-200 px-2 py-1.5 text-sm">
-                    {addableProducts.map((p) => (
-                      <option key={p.productId} value={p.productId}>
-                        {p.nameJp}
-                      </option>
-                    ))}
-                  </select>
+                  <ProductPicker name="productId" products={addableProducts} />
                   <input
                     type="number"
                     name="priority"
