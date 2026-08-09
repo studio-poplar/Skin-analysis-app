@@ -103,13 +103,13 @@ export default async function AdminMappingPage(props: PageProps<"/admin/mapping"
                 )}
               </div>
 
-              <details className="mb-4 rounded-lg border border-zinc-100 p-3">
-                <summary className="cursor-pointer text-xs font-semibold text-zinc-500">
-                  このカテゴリ専用のお手入れステップ順
-                  {(careStepsByCategory.get(category.categoryId)?.length ?? 0) === 0 && "(未設定・全体共通のデフォルトを使用中)"}
-                </summary>
-                <p className="mt-2 mb-3 text-xs text-zinc-400">
-                  設定すると、このカテゴリが結果に含まれる場合の「おすすめのお手入れステップ」の並び順に、
+              <div className="mb-4 rounded-lg border border-zinc-100 p-3">
+                <p className="text-xs font-semibold text-zinc-500">
+                  おすすめのお手入れステップの並び順
+                  {(careStepsByCategory.get(category.categoryId)?.length ?? 0) === 0 && "(未設定の場合は全体共通のデフォルトを使用)"}
+                </p>
+                <p className="mt-1 mb-3 text-xs text-zinc-400">
+                  ここで設定すると、このカテゴリが結果に含まれる場合に、
                   <a href="/admin/products" className="underline">製品管理</a>の全体共通デフォルトより優先して使われます。
                 </p>
                 <div className="mb-3 space-y-2">
@@ -157,7 +157,7 @@ export default async function AdminMappingPage(props: PageProps<"/admin/mapping"
                     追加
                   </button>
                 </form>
-              </details>
+              </div>
 
               {addableProducts.length > 0 && (
                 <form action={addCategoryProductAction} className="mb-4 flex items-center gap-2">
