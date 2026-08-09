@@ -247,6 +247,16 @@ model DesignSettings {
   @@map("design_settings")
 }
 
+// 診断ウィザードの進行順設定(単一行、id=1固定)。
+// trueなら②基本情報の直後に③ライフスタイル設問→④気になること・症状の深掘り、falseならその逆順で表示する。
+model DiagnosisFlowSettings {
+  id                    Int      @id @default(1)
+  lifestyleBeforeGenre  Boolean  @default(true) @map("lifestyle_before_genre")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  @@map("diagnosis_flow_settings")
+}
+
 // LINE誘導のグローバル設定(単一行、id=1固定)。カテゴリ別の上書きはConcernCategory側に持つ。
 model LineSettings {
   id             Int      @id @default(1)

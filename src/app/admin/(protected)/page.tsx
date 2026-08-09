@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { getCurrentSession } from "@/lib/admin-session";
 import { DashboardCharts, type DashboardData } from "./DashboardCharts";
+import { ClearHistoryPanel } from "./ClearHistoryPanel";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +15,9 @@ type StoredAnswers = {
 };
 
 export default async function AdminDashboardPage() {
+  const session = await getCurrentSession();
+  const isAdmin = session?.role === "admin";
+
   const [productCount, unverifiedKnowledgeCount, genres, basicQuestions, lifestyleQuestions, sessions] =
     await Promise.all([
       prisma.product.count({ where: { isActive: true } }),
@@ -207,6 +212,8 @@ export default async function AdminDashboardPage() {
       </div>
 
       <DashboardCharts data={dashboardData} />
+
+      {isAdmin && <ClearHistoryPanel totalSessions={totals.allTime.sessions} />}
     </div>
   );
 }

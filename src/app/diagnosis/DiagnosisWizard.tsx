@@ -105,11 +105,16 @@ export function DiagnosisWizard({ data, copy }: { data: DiagnosisFormData; copy:
     );
   }
 
+  // v9: ③ライフスタイル設問と④気になること・症状の深掘りの前後関係は管理画面(/admin/flow)で
+  // 切り替え可能(data.lifestyleBeforeGenre)。症状の深掘り(症状選択ループ)が終わった後の行き先は、
+  // ライフスタイル設問が既に終わっているか(先に出した場合)まだか(後に出す場合)で変わる。
   function goToSymptomOrSubmit(nextIndex: number) {
     if (nextIndex < orderedSelectedGenres.length) {
       setStep({ kind: "symptom", index: nextIndex });
-    } else {
+    } else if (data.lifestyleBeforeGenre) {
       submit();
+    } else {
+      setStep({ kind: "lifestyle" });
     }
   }
 
@@ -172,7 +177,7 @@ export function DiagnosisWizard({ data, copy }: { data: DiagnosisFormData; copy:
         <NextButton
           disabled={!ageOptionId || !genderOptionId}
           label={copy["diagnosis.next_button"] ?? "次へ"}
-          onClick={() => setStep({ kind: "lifestyle" })}
+          onClick={() => setStep({ kind: data.lifestyleBeforeGenre ? "lifestyle" : "genre" })}
         />
       </div>
     );
@@ -180,10 +185,15 @@ export function DiagnosisWizard({ data, copy }: { data: DiagnosisFormData; copy:
 
   if (step.kind === "lifestyle") {
     const allAnswered = data.lifestyleQuestions.every((q) => (lifestyleAnswers[q.questionId]?.length ?? 0) > 0);
+    // ライフスタイル設問が最後(気になること・症状の深掘りの後)に回されている場合、この「次へ」が最終送信になる
+    const isFinalStep = !data.lifestyleBeforeGenre;
 
     return (
       <div>
-        <ProgressBar stepLabel={copy["diagnosis.lifestyle_label"] ?? "Step 2/4・ライフスタイル"} percent={25} />
+        <ProgressBar
+          stepLabel={copy["diagnosis.lifestyle_label"] ?? "Step 2/4・ライフスタイル"}
+          percent={data.lifestyleBeforeGenre ? 25 : 85}
+        />
         <h2 className="mb-1 text-lg font-bold text-zinc-900">
           {copy["diagnosis.lifestyle_heading"] ?? "普段のケア習慣について教えてください"}
         </h2>
@@ -255,8 +265,8 @@ export function DiagnosisWizard({ data, copy }: { data: DiagnosisFormData; copy:
 
         <NextButton
           disabled={!allAnswered}
-          label={copy["diagnosis.next_button"] ?? "次へ"}
-          onClick={() => setStep({ kind: "genre" })}
+          label={isFinalStep ? copy["diagnosis.submit_button"] ?? "診断結果を見る" : copy["diagnosis.next_button"] ?? "次へ"}
+          onClick={() => (isFinalStep ? submit() : setStep({ kind: "genre" }))}
         />
       </div>
     );
@@ -265,7 +275,10 @@ export function DiagnosisWizard({ data, copy }: { data: DiagnosisFormData; copy:
   if (step.kind === "genre") {
     return (
       <div>
-        <ProgressBar stepLabel={copy["diagnosis.step2_label"] ?? "Step 3/4・気になること"} percent={50} />
+        <ProgressBar
+          stepLabel={copy["diagnosis.step2_label"] ?? "Step 3/4・気になること"}
+          percent={data.lifestyleBeforeGenre ? 50 : 25}
+        />
         <h2 className="mb-1 text-lg font-bold text-zinc-900">
           {copy["diagnosis.step2_heading"] ?? "今、気になることはどれですか?"}
         </h2>
@@ -306,7 +319,7 @@ export function DiagnosisWizard({ data, copy }: { data: DiagnosisFormData; copy:
       <div>
         <ProgressBar
           stepLabel={`Step 4/4・${step.index + 1}/${orderedSelectedGenres.length}分野中`}
-          percent={65 + (30 * (step.index + 1)) / orderedSelectedGenres.length}
+          percent={(data.lifestyleBeforeGenre ? 65 : 40) + (30 * (step.index + 1)) / orderedSelectedGenres.length}
         />
         <h2 className="mb-1 text-lg font-bold text-zinc-900">{symptomHeading}</h2>
         <p className="mb-6 text-xs text-zinc-500">{copy["diagnosis.multi_select_hint"] ?? "いくつでも選択できます"}</p>
@@ -324,7 +337,11 @@ export function DiagnosisWizard({ data, copy }: { data: DiagnosisFormData; copy:
 
         <NextButton
           disabled={selectedInThisGenre.length === 0}
-          label={isLast ? copy["diagnosis.submit_button"] ?? "診断結果を見る" : copy["diagnosis.next_button"] ?? "次へ"}
+          label={
+            isLast && data.lifestyleBeforeGenre
+              ? copy["diagnosis.submit_button"] ?? "診断結果を見る"
+              : copy["diagnosis.next_button"] ?? "次へ"
+          }
           onClick={() => goToSymptomOrSubmit(step.index + 1)}
         />
       </div>

@@ -20,6 +20,22 @@ export async function reorderQuestionsAction(orderedQuestionIds: number[]) {
   revalidatePath("/diagnosis");
 }
 
+// 診断ウィザードの進行順(v9): ③ライフスタイル設問を④気になること・症状の深掘りより前に出すかどうか。
+export async function updateDiagnosisFlowOrderAction(formData: FormData) {
+  await assertRole("editor");
+
+  const lifestyleBeforeGenre = formData.get("lifestyleBeforeGenre") === "on";
+  await prisma.diagnosisFlowSettings.upsert({
+    where: { id: 1 },
+    update: { lifestyleBeforeGenre },
+    create: { id: 1, lifestyleBeforeGenre },
+  });
+
+  revalidatePath("/admin/flow");
+  revalidatePath("/diagnosis");
+  redirect("/admin/flow?saved=1");
+}
+
 export async function createGenreAction(formData: FormData) {
   await assertRole("editor");
 

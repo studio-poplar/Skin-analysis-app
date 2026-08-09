@@ -7,6 +7,7 @@ import {
   toggleCategoryActiveAction,
   toggleGenreActiveAction,
   updateCategoryAction,
+  updateDiagnosisFlowOrderAction,
   updateGenreAction,
 } from "../../flow-actions";
 import { SortableQuestionList } from "./SortableQuestionList";
@@ -46,6 +47,9 @@ export default async function AdminFlowPage(props: PageProps<"/admin/flow">) {
     include: { options: { orderBy: { sortOrder: "asc" } } },
   });
 
+  const flowSettings = await prisma.diagnosisFlowSettings.findUnique({ where: { id: 1 } });
+  const lifestyleBeforeGenre = flowSettings?.lifestyleBeforeGenre ?? true;
+
   return (
     <div>
       <h1 className="mb-2 text-xl font-bold text-zinc-900">診断フロー管理</h1>
@@ -61,6 +65,29 @@ export default async function AdminFlowPage(props: PageProps<"/admin/flow">) {
           {ERROR_MESSAGES[errorKey] ?? "エラーが発生しました。"}
         </p>
       )}
+
+      <section className="mb-10 rounded-2xl border-2 border-amber-200 bg-amber-50/40 p-5">
+        <h2 className="mb-1 text-base font-bold text-zinc-900">Step3・4/5の表示順</h2>
+        <p className="mb-4 text-xs text-zinc-500">
+          診断ウィザードで「③ライフスタイル設問」と「④気になること・症状の深掘り」のどちらを先に聞くかを切り替えられます。
+        </p>
+        <form action={updateDiagnosisFlowOrderAction} className="flex items-center gap-3">
+          <label className="flex items-center gap-2 text-sm text-zinc-700">
+            <input type="checkbox" name="lifestyleBeforeGenre" defaultChecked={lifestyleBeforeGenre} className="h-4 w-4" />
+            ③ライフスタイル設問を④気になることより先に表示する(オフにすると逆順になります)
+          </label>
+          <button type="submit" className="rounded-full bg-zinc-900 px-3 py-1 text-xs font-semibold text-white hover:bg-zinc-700">
+            保存
+          </button>
+        </form>
+        <p className="mt-3 text-xs text-zinc-400">
+          切り替えた場合、進捗バーの「Step X/4」表記(ページ文言管理で編集可能)が実際の順番とずれることがあります。あわせて
+          <a href="/admin/content" className="underline">
+            ページ文言管理
+          </a>
+          から文言も調整してください。
+        </p>
+      </section>
 
       <section className="mb-10 rounded-2xl border-2 border-zinc-200 p-5">
         <h2 className="mb-4 text-base font-bold text-zinc-900">Step2: 基本情報(年代・性別)</h2>
