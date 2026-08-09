@@ -4,15 +4,16 @@ export type LifestyleQuestion = {
   questionId: number;
   questionText: string;
   questionType: "single_select" | "multi_select";
+  role: string | null;
   options: { optionId: number; text: string }[];
 };
 
 export type DiagnosisFormData = {
-  ageQuestion: { questionId: number; options: { optionId: number; text: string }[] };
-  genderQuestion: { questionId: number; options: { optionId: number; text: string }[] };
-  // 2026-08-09追加(v7): ②基本情報の直後の「ライフスタイル」Step用の6問。
-  // 登録順(questionId昇順)で常に「①スキンケア習慣・②スキンケア予算・③スキンケア重視点・
-  // ④サプリメント習慣・⑤サプリメント予算・⑥サプリメント重視点」の並びになる想定(節7-14参照)。
+  // ②基本情報(年代・性別)。管理画面のドラッグ&ドロップ並び替え(v8)が実際の表示順にも
+  // 反映されるよう、固定の2フィールドではなく表示順(sortOrder)配列として持つ。
+  // どちらが年代/性別かは`role`("age"|"gender")で識別する(節7-15参照)。
+  basicQuestions: LifestyleQuestion[];
+  // ③ライフスタイル設問(6問、節7-14)。同様にsortOrder順、意味の識別はroleで行う。
   lifestyleQuestions: LifestyleQuestion[];
   genres: {
     genreId: string;
@@ -24,16 +25,17 @@ export type DiagnosisFormData = {
 // 診断フォームの初期表示に必要な質問・ジャンル・症状カテゴリ一式を取得する
 export async function getDiagnosisFormData(): Promise<DiagnosisFormData> {
   const [basicQuestions, lifestyleQuestions, genres] = await Promise.all([
-    // ①基本情報の質問文は管理画面から自由に編集できるため、questionTextではなくstep内の登録順(questionId昇順、年代→性別の順で投入される)で識別する
+    // 表示順は管理画面でドラッグ&ドロップ並び替え可能な sortOrder に従う(v8)。
+    // 「年代」「性別」どちらかの識別はroleで行う(questionTextや並び順には依存しない)。
     prisma.question.findMany({
       where: { step: 1 },
-      orderBy: { questionId: "asc" },
+      orderBy: { sortOrder: "asc" },
       include: { options: { orderBy: { sortOrder: "asc" } } },
     }),
-    // ライフスタイル設問(step:2)も同様に登録順で識別する
+    // ライフスタイル設問(step:2)も同様にsortOrderで表示順、roleで意味を識別する
     prisma.question.findMany({
       where: { step: 2 },
-      orderBy: { questionId: "asc" },
+      orderBy: { sortOrder: "asc" },
       include: { options: { orderBy: { sortOrder: "asc" } } },
     }),
     prisma.genre.findMany({
@@ -43,25 +45,26 @@ export async function getDiagnosisFormData(): Promise<DiagnosisFormData> {
     }),
   ]);
 
-  const [ageQuestion, genderQuestion] = basicQuestions;
+  const hasAge = basicQuestions.some((q) => q.role === "age");
+  const hasGender = basicQuestions.some((q) => q.role === "gender");
 
-  if (!ageQuestion || !genderQuestion) {
+  if (!hasAge || !hasGender) {
     throw new Error("質問マスタが投入されていません。`npm run db:seed` を実行してください。");
   }
 
   return {
-    ageQuestion: {
-      questionId: ageQuestion.questionId,
-      options: ageQuestion.options.map((o) => ({ optionId: o.optionId, text: o.optionText })),
-    },
-    genderQuestion: {
-      questionId: genderQuestion.questionId,
-      options: genderQuestion.options.map((o) => ({ optionId: o.optionId, text: o.optionText })),
-    },
+    basicQuestions: basicQuestions.map((q) => ({
+      questionId: q.questionId,
+      questionText: q.questionText,
+      questionType: q.questionType,
+      role: q.role,
+      options: q.options.map((o) => ({ optionId: o.optionId, text: o.optionText })),
+    })),
     lifestyleQuestions: lifestyleQuestions.map((q) => ({
       questionId: q.questionId,
       questionText: q.questionText,
       questionType: q.questionType,
+      role: q.role,
       options: q.options.map((o) => ({ optionId: o.optionId, text: o.optionText })),
     })),
     genres: genres.map((g) => ({

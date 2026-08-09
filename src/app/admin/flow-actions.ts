@@ -1,8 +1,24 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { assertRole } from "./actions";
+
+// 管理画面のドラッグ&ドロップ並び替え(v8)から直接呼び出す(フォーム送信ではなく関数呼び出し)。
+// Stepをまたいだ並び替えは対象外のため、呼び出し側で同じstep内のquestionIdのみを渡すこと。
+export async function reorderQuestionsAction(orderedQuestionIds: number[]) {
+  await assertRole("editor");
+
+  await prisma.$transaction(
+    orderedQuestionIds.map((questionId, index) =>
+      prisma.question.update({ where: { questionId }, data: { sortOrder: index } })
+    )
+  );
+
+  revalidatePath("/admin/flow");
+  revalidatePath("/diagnosis");
+}
 
 export async function createGenreAction(formData: FormData) {
   await assertRole("editor");

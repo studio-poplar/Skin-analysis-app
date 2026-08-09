@@ -118,6 +118,14 @@ model Question {
   questionText      String       @map("question_text")
   questionType      QuestionType @map("question_type")
   parentCategoryId  String?      @map("parent_category_id")
+  // 2026-08-09追加(v8): 管理画面でのドラッグ&ドロップ並び替え用。表示順はこの列で決まる。
+  sortOrder         Int          @default(0) @map("sort_order")
+  // 表示順(sortOrder)とは独立して、そのstep内での「意味」を固定で識別するためのキー。
+  // 例: step:1は"age"/"gender"、step:2は"skincare_routine"/"skincare_budget"/"skincare_priority"/
+  // "supplement_usage"/"supplement_budget"/"supplement_priority"。
+  // 管理画面で質問の表示順を自由に並び替えられるようにしたため、以前のような
+  // 「questionId昇順で何番目か」による識別ではなく、このroleで安定して識別する。
+  role              String?
 
   parentCategory ConcernCategory? @relation(fields: [parentCategoryId], references: [categoryId])
   options        QuestionOption[]

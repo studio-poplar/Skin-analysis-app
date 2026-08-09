@@ -146,29 +146,28 @@ export function DiagnosisWizard({ data, copy }: { data: DiagnosisFormData; copy:
           {copy["diagnosis.step1_heading"] ?? "まずは基本的なことを教えてください"}
         </h2>
 
-        <p className="mb-2 text-sm font-semibold text-zinc-700">{copy["diagnosis.age_label"] ?? "年代"}</p>
-        <div className="mb-6 grid grid-cols-3 gap-2">
-          {data.ageQuestion.options.map((o) => (
-            <OptionButton
-              key={o.optionId}
-              label={o.text}
-              selected={ageOptionId === o.optionId}
-              onClick={() => setAgeOptionId(o.optionId)}
-            />
-          ))}
-        </div>
-
-        <p className="mb-2 text-sm font-semibold text-zinc-700">{copy["diagnosis.gender_label"] ?? "性別"}</p>
-        <div className="grid grid-cols-3 gap-2">
-          {data.genderQuestion.options.map((o) => (
-            <OptionButton
-              key={o.optionId}
-              label={o.text}
-              selected={genderOptionId === o.optionId}
-              onClick={() => setGenderOptionId(o.optionId)}
-            />
-          ))}
-        </div>
+        {/* 表示順は管理画面のドラッグ&ドロップ並び替え(v8)に従う。どちらが年代/性別かはroleで判定する */}
+        {data.basicQuestions.map((q, i) => {
+          const isAge = q.role === "age";
+          const selectedOptionId = isAge ? ageOptionId : genderOptionId;
+          const setSelectedOptionId = isAge ? setAgeOptionId : setGenderOptionId;
+          const label = isAge ? copy["diagnosis.age_label"] ?? "年代" : copy["diagnosis.gender_label"] ?? "性別";
+          return (
+            <div key={q.questionId} className={i < data.basicQuestions.length - 1 ? "mb-6" : ""}>
+              <p className="mb-2 text-sm font-semibold text-zinc-700">{label}</p>
+              <div className="grid grid-cols-3 gap-2">
+                {q.options.map((o) => (
+                  <OptionButton
+                    key={o.optionId}
+                    label={o.text}
+                    selected={selectedOptionId === o.optionId}
+                    onClick={() => setSelectedOptionId(o.optionId)}
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        })}
 
         <NextButton
           disabled={!ageOptionId || !genderOptionId}
@@ -193,15 +192,17 @@ export function DiagnosisWizard({ data, copy }: { data: DiagnosisFormData; copy:
         </p>
 
         <div className="space-y-8">
-          {data.lifestyleQuestions.map((q, qIndex) => {
+          {data.lifestyleQuestions.map((q) => {
             const selected = lifestyleAnswers[q.questionId] ?? [];
             const isMulti = q.questionType === "multi_select";
             const firstOptionId = q.options[0]?.optionId;
             const noneOfTheAboveSelected = selected.length === 1 && selected[0] === firstOptionId;
-            // スキンケア習慣(1問目)・サプリメント摂取(4問目)の直後にのみ、任意のメーカー自由記述欄を出す。
+            // スキンケア習慣・サプリメント摂取の質問の直後にのみ、任意のメーカー自由記述欄を出す。
+            // v8で管理画面から質問の表示順を並び替えられるようになったため、配列内の位置(何問目か)
+            // ではなく、質問のrole(節7-15参照)で判定する。
             // 各質問の選択肢1(「特に何もしていない」「摂取していない」)を選んでいる間は隠す。
-            const showSkincareFreeText = qIndex === 0 && !noneOfTheAboveSelected;
-            const showSupplementFreeText = qIndex === 3 && !noneOfTheAboveSelected;
+            const showSkincareFreeText = q.role === "skincare_routine" && !noneOfTheAboveSelected;
+            const showSupplementFreeText = q.role === "supplement_usage" && !noneOfTheAboveSelected;
 
             return (
               <div key={q.questionId}>

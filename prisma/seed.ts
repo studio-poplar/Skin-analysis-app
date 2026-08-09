@@ -609,14 +609,20 @@ async function main() {
   }
 
   console.log("質問(②基本情報)を投入中...");
-  const q1Age = await getOrCreateQuestion(1, "年代を教えてください", QuestionType.single_select, null);
+  const q1Age = await getOrCreateQuestion(1, "年代を教えてください", QuestionType.single_select, null, "age");
   await getOrCreateOptions(q1Age.questionId, ["20代", "30代", "40代", "50代以上"]);
 
-  const q1Gender = await getOrCreateQuestion(1, "性別を教えてください", QuestionType.single_select, null);
+  const q1Gender = await getOrCreateQuestion(1, "性別を教えてください", QuestionType.single_select, null, "gender");
   await getOrCreateOptions(q1Gender.questionId, ["女性", "男性", "回答しない"]);
 
   console.log("質問(ライフスタイル、2026-08-09追加)を投入中...");
-  const q2SkincareRoutine = await getOrCreateQuestion(2, "普段のスキンケアについて教えてください", QuestionType.single_select, null);
+  const q2SkincareRoutine = await getOrCreateQuestion(
+    2,
+    "普段のスキンケアについて教えてください",
+    QuestionType.single_select,
+    null,
+    "skincare_routine"
+  );
   await getOrCreateOptions(q2SkincareRoutine.questionId, [
     "特に何もしていない",
     "洗顔・保湿など基本的なケアのみ",
@@ -625,7 +631,13 @@ async function main() {
     "エステ・サロンなど専門的なケアも受けている",
   ]);
 
-  const q2SkincareBudget = await getOrCreateQuestion(2, "スキンケアにかけている月々の費用の目安を教えてください", QuestionType.single_select, null);
+  const q2SkincareBudget = await getOrCreateQuestion(
+    2,
+    "スキンケアにかけている月々の費用の目安を教えてください",
+    QuestionType.single_select,
+    null,
+    "skincare_budget"
+  );
   await getOrCreateOptions(q2SkincareBudget.questionId, [
     "3,000円未満",
     "3,000円〜10,000円未満",
@@ -634,7 +646,13 @@ async function main() {
     "50,000円以上",
   ]);
 
-  const q2SkincarePriority = await getOrCreateQuestion(2, "スキンケア製品を選ぶときに、特に重視することを教えてください", QuestionType.multi_select, null);
+  const q2SkincarePriority = await getOrCreateQuestion(
+    2,
+    "スキンケア製品を選ぶときに、特に重視することを教えてください",
+    QuestionType.multi_select,
+    null,
+    "skincare_priority"
+  );
   await getOrCreateOptions(q2SkincarePriority.questionId, [
     "価格の手頃さ",
     "効果・実感のしやすさ",
@@ -643,7 +661,13 @@ async function main() {
     "ブランド・企業への信頼",
   ]);
 
-  const q2SupplementUsage = await getOrCreateQuestion(2, "普段のサプリメント摂取について教えてください", QuestionType.single_select, null);
+  const q2SupplementUsage = await getOrCreateQuestion(
+    2,
+    "普段のサプリメント摂取について教えてください",
+    QuestionType.single_select,
+    null,
+    "supplement_usage"
+  );
   await getOrCreateOptions(q2SupplementUsage.questionId, [
     "摂取していない",
     "市販のマルチビタミン等を摂取している",
@@ -652,7 +676,13 @@ async function main() {
     "複数のサプリメントを組み合わせて摂取している",
   ]);
 
-  const q2SupplementBudget = await getOrCreateQuestion(2, "サプリメントにかけている月々の費用の目安を教えてください", QuestionType.single_select, null);
+  const q2SupplementBudget = await getOrCreateQuestion(
+    2,
+    "サプリメントにかけている月々の費用の目安を教えてください",
+    QuestionType.single_select,
+    null,
+    "supplement_budget"
+  );
   await getOrCreateOptions(q2SupplementBudget.questionId, [
     "3,000円未満",
     "3,000円〜10,000円未満",
@@ -661,7 +691,13 @@ async function main() {
     "50,000円以上",
   ]);
 
-  const q2SupplementPriority = await getOrCreateQuestion(2, "サプリメントを選ぶときに、特に重視することを教えてください", QuestionType.multi_select, null);
+  const q2SupplementPriority = await getOrCreateQuestion(
+    2,
+    "サプリメントを選ぶときに、特に重視することを教えてください",
+    QuestionType.multi_select,
+    null,
+    "supplement_priority"
+  );
   await getOrCreateOptions(q2SupplementPriority.questionId, [
     "価格の手頃さ",
     "効果・実感のしやすさ",
@@ -922,12 +958,14 @@ async function getOrCreateQuestion(
   step: number,
   questionText: string,
   questionType: QuestionType,
-  parentCategoryId: string | null
+  parentCategoryId: string | null,
+  role: string | null = null
 ) {
   const existing = await prisma.question.findFirst({ where: { questionText } });
   if (existing) return existing;
+  const sortOrder = await prisma.question.count({ where: { step } });
   return prisma.question.create({
-    data: { step, questionText, questionType, parentCategoryId },
+    data: { step, questionText, questionType, parentCategoryId, role, sortOrder },
   });
 }
 

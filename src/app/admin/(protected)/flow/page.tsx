@@ -1,18 +1,15 @@
 import { prisma } from "@/lib/prisma";
 import {
-  addBasicOptionAction,
   createCategoryAction,
   createGenreAction,
   deleteCategoryAction,
   deleteGenreAction,
-  removeBasicOptionAction,
   toggleCategoryActiveAction,
   toggleGenreActiveAction,
-  updateBasicOptionAction,
-  updateBasicQuestionAction,
   updateCategoryAction,
   updateGenreAction,
 } from "../../flow-actions";
+import { SortableQuestionList } from "./SortableQuestionList";
 
 const ERROR_MESSAGES: Record<string, string> = {
   missing: "名前を入力してください。",
@@ -39,73 +36,15 @@ export default async function AdminFlowPage(props: PageProps<"/admin/flow">) {
 
   const basicQuestions = await prisma.question.findMany({
     where: { step: 1 },
-    orderBy: { questionId: "asc" },
+    orderBy: { sortOrder: "asc" },
     include: { options: { orderBy: { sortOrder: "asc" } } },
   });
 
   const lifestyleQuestions = await prisma.question.findMany({
     where: { step: 2 },
-    orderBy: { questionId: "asc" },
+    orderBy: { sortOrder: "asc" },
     include: { options: { orderBy: { sortOrder: "asc" } } },
   });
-
-  function QuestionEditorCard({ q }: { q: (typeof basicQuestions)[number] }) {
-    return (
-      <div key={q.questionId} className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
-        <form action={updateBasicQuestionAction} className="mb-3 flex items-center gap-2">
-          <input type="hidden" name="questionId" value={q.questionId} />
-          <input
-            type="text"
-            name="questionText"
-            defaultValue={q.questionText}
-            className="flex-1 rounded-lg border border-zinc-200 px-3 py-1.5 text-sm"
-          />
-          <span className="shrink-0 rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-semibold text-zinc-500">
-            {q.questionType === "multi_select" ? "複数選択" : "単一選択"}
-          </span>
-          <button type="submit" className="rounded-full bg-zinc-900 px-3 py-1 text-xs font-semibold text-white hover:bg-zinc-700">
-            保存
-          </button>
-        </form>
-        <div className="space-y-2 pl-3">
-          {q.options.map((o) => (
-            <div key={o.optionId} className="flex items-center gap-2">
-              <form action={updateBasicOptionAction} className="flex flex-1 items-center gap-2">
-                <input type="hidden" name="optionId" value={o.optionId} />
-                <input
-                  type="text"
-                  name="optionText"
-                  defaultValue={o.optionText}
-                  className="flex-1 rounded-lg border border-zinc-200 px-3 py-1 text-sm"
-                />
-                <button type="submit" className="rounded-full border border-zinc-300 px-3 py-1 text-xs font-semibold text-zinc-600 hover:bg-zinc-50">
-                  保存
-                </button>
-              </form>
-              <form action={removeBasicOptionAction}>
-                <input type="hidden" name="optionId" value={o.optionId} />
-                <button type="submit" className="rounded-full border border-rose-200 px-2 py-1 text-xs font-semibold text-rose-600 hover:bg-rose-50">
-                  削除
-                </button>
-              </form>
-            </div>
-          ))}
-          <form action={addBasicOptionAction} className="flex items-center gap-2 pt-1">
-            <input type="hidden" name="questionId" value={q.questionId} />
-            <input
-              type="text"
-              name="optionText"
-              placeholder="選択肢を追加"
-              className="flex-1 rounded-lg border border-dashed border-zinc-300 px-3 py-1 text-sm"
-            />
-            <button type="submit" className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-600 hover:bg-zinc-200">
-              追加
-            </button>
-          </form>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div>
@@ -125,23 +64,17 @@ export default async function AdminFlowPage(props: PageProps<"/admin/flow">) {
 
       <section className="mb-10 rounded-2xl border-2 border-zinc-200 p-5">
         <h2 className="mb-4 text-base font-bold text-zinc-900">Step2: 基本情報(年代・性別)</h2>
-        <div className="space-y-4">
-          {basicQuestions.map((q) => (
-            <QuestionEditorCard key={q.questionId} q={q} />
-          ))}
-        </div>
+        <p className="mb-4 text-xs text-zinc-500">左端の「⠿」をドラッグすると表示順を並び替えられます(2026-08-09追加)。</p>
+        <SortableQuestionList questions={basicQuestions} />
       </section>
 
       <section className="mb-10 rounded-2xl border-2 border-zinc-200 p-5">
         <h2 className="mb-4 text-base font-bold text-zinc-900">Step3: ライフスタイル設問(スキンケア・サプリメント)</h2>
         <p className="mb-4 text-xs text-zinc-500">
-          2026-08-09に追加。質問文・選択肢テキストの編集や選択肢の追加・削除ができます(選択形式(単一/複数選択)自体は編集画面からは変更できません)。
+          質問文・選択肢テキストの編集や選択肢の追加・削除ができます(選択形式(単一/複数選択)自体は編集画面からは変更できません)。
+          左端の「⠿」をドラッグすると表示順を並び替えられます(2026-08-09追加)。
         </p>
-        <div className="space-y-4">
-          {lifestyleQuestions.map((q) => (
-            <QuestionEditorCard key={q.questionId} q={q} />
-          ))}
-        </div>
+        <SortableQuestionList questions={lifestyleQuestions} />
       </section>
 
       <section className="mb-10 rounded-2xl border-2 border-zinc-200 p-5">
