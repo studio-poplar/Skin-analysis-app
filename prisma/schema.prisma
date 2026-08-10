@@ -189,6 +189,10 @@ model DiagnosisResult {
   categoryId             String   @map("category_id")
   recommendedProductIds  Json     @map("recommended_product_ids")
   displayedAt            DateTime @default(now()) @map("displayed_at")
+  // v10追加: この症状カテゴリの継続期間(QuestionOption.optionIdを指す。FK制約は張らない。
+  // recommendedProductIdsと同様、過去の診断結果は回答時点のスナップショットとして扱うため)。
+  // 過去の診断結果(この列の追加より前)はnullになる。
+  durationOptionId       Int?     @map("duration_option_id")
 
   session  DiagnosisSession @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
   category ConcernCategory  @relation(fields: [categoryId], references: [categoryId])

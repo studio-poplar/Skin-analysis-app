@@ -16,6 +16,7 @@ const CONTENT_KEYS = [
   "diagnosis.multi_select_hint",
   "diagnosis.next_button",
   "diagnosis.symptom_heading_template",
+  "diagnosis.duration_heading_template",
   "diagnosis.submit_button",
   "diagnosis.loading_text",
   "diagnosis.background_image_url",

@@ -61,6 +61,7 @@ type Step =
   | { kind: "lifestyle" }
   | { kind: "genre" }
   | { kind: "symptom"; index: number }
+  | { kind: "duration"; index: number }
   | { kind: "submitting" };
 
 export function DiagnosisWizard({ data, copy }: { data: DiagnosisFormData; copy: Record<string, string> }) {
@@ -74,6 +75,8 @@ export function DiagnosisWizard({ data, copy }: { data: DiagnosisFormData; copy:
   const [supplementBrandFreeText, setSupplementBrandFreeText] = useState("");
   const [selectedGenreIds, setSelectedGenreIds] = useState<string[]>([]);
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
+  // v10: 選んだ症状カテゴリごとの継続期間の回答(categoryId -> optionId)
+  const [durationAnswers, setDurationAnswers] = useState<Record<string, number>>({});
   const [error, setError] = useState<string | null>(null);
 
   function selectLifestyleOption(questionId: number, optionId: number, isMulti: boolean) {
@@ -93,6 +96,16 @@ export function DiagnosisWizard({ data, copy }: { data: DiagnosisFormData; copy:
     [data.genres, selectedGenreIds]
   );
 
+  // v10: 選ばれた症状カテゴリを、ジャンル→カテゴリの並び順でフラット化したもの。
+  // 継続期間の質問をこの順番で1問ずつ聞く。
+  const orderedSelectedCategories = useMemo(
+    () =>
+      orderedSelectedGenres.flatMap((g) => g.categories.filter((c) => selectedCategoryIds.includes(c.categoryId))),
+    [orderedSelectedGenres, selectedCategoryIds]
+  );
+
+  const hasDurationStep = data.durationQuestion !== null && orderedSelectedCategories.length > 0;
+
   function toggleGenre(genreId: string) {
     setSelectedGenreIds((prev) =>
       prev.includes(genreId) ? prev.filter((id) => id !== genreId) : [...prev, genreId]
@@ -105,9 +118,23 @@ export function DiagnosisWizard({ data, copy }: { data: DiagnosisFormData; copy:
     );
   }
 
+  function selectDuration(categoryId: string, optionId: number) {
+    setDurationAnswers((prev) => ({ ...prev, [categoryId]: optionId }));
+  }
+
   function goToSymptomOrSubmit(nextIndex: number) {
     if (nextIndex < orderedSelectedGenres.length) {
       setStep({ kind: "symptom", index: nextIndex });
+    } else if (hasDurationStep) {
+      setStep({ kind: "duration", index: 0 });
+    } else {
+      submit();
+    }
+  }
+
+  function goToDurationOrSubmit(nextIndex: number) {
+    if (nextIndex < orderedSelectedCategories.length) {
+      setStep({ kind: "duration", index: nextIndex });
     } else {
       submit();
     }
@@ -129,11 +156,18 @@ export function DiagnosisWizard({ data, copy }: { data: DiagnosisFormData; copy:
           supplementBrandFreeText,
           selectedGenreIds,
           selectedCategoryIds,
+          categoryDurations: orderedSelectedCategories
+            .filter((c) => durationAnswers[c.categoryId] != null)
+            .map((c) => ({ categoryId: c.categoryId, durationOptionId: durationAnswers[c.categoryId] })),
         });
         router.push(`/diagnosis/result/${sessionId}`);
       } catch (e) {
         setError(e instanceof Error ? e.message : "診断結果の作成に失敗しました。");
-        setStep({ kind: "symptom", index: orderedSelectedGenres.length - 1 });
+        if (hasDurationStep) {
+          setStep({ kind: "duration", index: orderedSelectedCategories.length - 1 });
+        } else {
+          setStep({ kind: "symptom", index: orderedSelectedGenres.length - 1 });
+        }
       }
     });
   }
@@ -306,7 +340,7 @@ export function DiagnosisWizard({ data, copy }: { data: DiagnosisFormData; copy:
       <div>
         <ProgressBar
           stepLabel={`Step 4/4・${step.index + 1}/${orderedSelectedGenres.length}分野中`}
-          percent={65 + (30 * (step.index + 1)) / orderedSelectedGenres.length}
+          percent={65 + ((hasDurationStep ? 15 : 30) * (step.index + 1)) / orderedSelectedGenres.length}
         />
         <h2 className="mb-1 text-lg font-bold text-zinc-900">{symptomHeading}</h2>
         <p className="mb-6 text-xs text-zinc-500">{copy["diagnosis.multi_select_hint"] ?? "いくつでも選択できます"}</p>
@@ -324,8 +358,52 @@ export function DiagnosisWizard({ data, copy }: { data: DiagnosisFormData; copy:
 
         <NextButton
           disabled={selectedInThisGenre.length === 0}
-          label={isLast ? copy["diagnosis.submit_button"] ?? "診断結果を見る" : copy["diagnosis.next_button"] ?? "次へ"}
+          label={
+            isLast && !hasDurationStep
+              ? copy["diagnosis.submit_button"] ?? "診断結果を見る"
+              : copy["diagnosis.next_button"] ?? "次へ"
+          }
           onClick={() => goToSymptomOrSubmit(step.index + 1)}
+        />
+      </div>
+    );
+  }
+
+  if (step.kind === "duration" && data.durationQuestion) {
+    const category = orderedSelectedCategories[step.index];
+    const isLastDuration = step.index === orderedSelectedCategories.length - 1;
+    const selectedOptionId = durationAnswers[category.categoryId];
+    const durationHeadingTemplate =
+      copy["diagnosis.duration_heading_template"] ?? "「{category}」について、{question}";
+    const durationHeading = durationHeadingTemplate
+      .replace("{category}", category.name)
+      .replace("{question}", data.durationQuestion.questionText);
+
+    return (
+      <div>
+        <ProgressBar
+          stepLabel={`Step 4/4・継続期間 ${step.index + 1}/${orderedSelectedCategories.length}問`}
+          percent={80 + (18 * (step.index + 1)) / orderedSelectedCategories.length}
+        />
+        <h2 className="mb-6 text-lg font-bold text-zinc-900">{durationHeading}</h2>
+
+        <div className="grid grid-cols-1 gap-2">
+          {data.durationQuestion.options.map((o) => (
+            <OptionButton
+              key={o.optionId}
+              label={o.text}
+              selected={selectedOptionId === o.optionId}
+              onClick={() => selectDuration(category.categoryId, o.optionId)}
+            />
+          ))}
+        </div>
+
+        {error && <p className="mt-4 text-sm text-rose-600">{error}</p>}
+
+        <NextButton
+          disabled={selectedOptionId == null}
+          label={isLastDuration ? copy["diagnosis.submit_button"] ?? "診断結果を見る" : copy["diagnosis.next_button"] ?? "次へ"}
+          onClick={() => goToDurationOrSubmit(step.index + 1)}
         />
       </div>
     );

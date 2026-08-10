@@ -18,7 +18,7 @@ export default async function AdminDashboardPage() {
   const session = await getCurrentSession();
   const isAdmin = session?.role === "admin";
 
-  const [productCount, unverifiedKnowledgeCount, genres, basicQuestions, lifestyleQuestions, sessions] =
+  const [productCount, unverifiedKnowledgeCount, genres, basicQuestions, lifestyleQuestions, durationQuestions, sessions] =
     await Promise.all([
       prisma.product.count({ where: { isActive: true } }),
       prisma.generalKnowledge.count({ where: { isSourceVerified: false } }),
@@ -35,6 +35,12 @@ export default async function AdminDashboardPage() {
         where: { step: 2 },
         include: { options: { orderBy: { sortOrder: "asc" } } },
       }),
+      // v10: 症状の継続期間(step:4)。ラベル解決のためのオプション一覧のみ必要。
+      prisma.question.findMany({
+        where: { step: 4, role: "symptom_duration" },
+        include: { options: { orderBy: { sortOrder: "asc" } } },
+        take: 1,
+      }),
       prisma.diagnosisSession.findMany({
         include: { results: true },
         orderBy: { startedAt: "asc" },
@@ -47,13 +53,13 @@ export default async function AdminDashboardPage() {
   const genderQ = basicQuestions.find((q) => q.role === "gender") ?? basicQuestions[1];
 
   const ageLabelsOrdered = (ageQuestion?.options ?? []).map((o) => o.optionText);
-  const genderLabelsOrdered = (genderQ?.options ?? []).map((o) => o.optionText);
 
   // ライフスタイル設問(節7-14・7-15): roleで①スキンケア習慣・④サプリメント摂取を識別する
   const skincareRoutineQuestion = lifestyleQuestions.find((q) => q.role === "skincare_routine");
   const supplementUsageQuestion = lifestyleQuestions.find((q) => q.role === "supplement_usage");
   const skincareOptionLabel = new Map((skincareRoutineQuestion?.options ?? []).map((o) => [o.optionId, o.optionText]));
   const supplementOptionLabel = new Map((supplementUsageQuestion?.options ?? []).map((o) => [o.optionId, o.optionText]));
+  const durationOptionLabel = new Map((durationQuestions[0]?.options ?? []).map((o) => [o.optionId, o.optionText]));
 
   const now = new Date();
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -72,35 +78,23 @@ export default async function AdminDashboardPage() {
     },
   };
 
-  // カテゴリ一覧(ジャンル→並び順、ドロップダウン・②のラベル用)
+  // カテゴリ一覧(ジャンル→並び順、ヒートマップの行順・②のラベル用)
   const categoryOptions: { categoryId: string; name: string; genreName: string }[] = [];
   for (const genre of genres) {
     for (const category of genre.categories) {
       categoryOptions.push({ categoryId: category.categoryId, name: category.name, genreName: genre.name });
     }
   }
-  const categoryNameById = new Map(categoryOptions.map((c) => [c.categoryId, c.name]));
 
-  // ②悩みカテゴリ別の件数、③年代×性別、⑤ケア習慣クロス集計を、DiagnosisResult単位で一括集計する
+  // ②悩みカテゴリ別の件数、⑥自由記述一覧(全体)は従来どおりセッション単位で集計する。
+  // ③(v10でヒートマップ化)・詳細パネルは、DiagnosisResult単位のフラットな行データを
+  // クライアント側に渡し、セル(カテゴリ×年代×性別タブ)でその場にフィルタする方式にした
+  // (該当条件の組み合わせが多く、サーバー側で全パターンを事前集計すると管理コストが増えるため)。
   const categoryCountMap = new Map<string, number>();
-  const ageGenderByCategory: DashboardData["ageGenderByCategory"] = {};
-  const careByCategory: DashboardData["careByCategory"] = {};
-
-  for (const c of categoryOptions) {
-    ageGenderByCategory[c.categoryId] = {
-      ageLabels: ageLabelsOrdered,
-      genderLabels: genderLabelsOrdered,
-      counts: ageLabelsOrdered.map(() => genderLabelsOrdered.map(() => 0)),
-    };
-    careByCategory[c.categoryId] = {
-      skincare: Array.from(skincareOptionLabel.values()).map((label) => ({ label, count: 0 })),
-      supplement: Array.from(supplementOptionLabel.values()).map((label) => ({ label, count: 0 })),
-    };
-  }
-
   const skincareFreeTexts: string[] = [];
   const supplementFreeTexts: string[] = [];
   const seenSessionIdsForFreeText = new Set<string>();
+  const sessionCategoryRows: DashboardData["sessionCategoryRows"] = [];
 
   for (const session of allSessions) {
     const answers = session.answersJson as StoredAnswers;
@@ -115,6 +109,7 @@ export default async function AdminDashboardPage() {
 
     const ageIndex = ageQuestion?.options.findIndex((o) => o.optionId === answers.ageOptionId) ?? -1;
     const genderIndex = genderQ?.options.findIndex((o) => o.optionId === answers.genderOptionId) ?? -1;
+    const genderLabel = genderIndex >= 0 ? (genderQ?.options[genderIndex].optionText ?? null) : null;
 
     const skincareAnswer = answers.lifestyleAnswers?.find((a) => a.questionId === skincareRoutineQuestion?.questionId);
     const supplementAnswer = answers.lifestyleAnswers?.find((a) => a.questionId === supplementUsageQuestion?.questionId);
@@ -125,22 +120,17 @@ export default async function AdminDashboardPage() {
     for (const result of session.results) {
       categoryCountMap.set(result.categoryId, (categoryCountMap.get(result.categoryId) ?? 0) + 1);
 
-      const table = ageGenderByCategory[result.categoryId];
-      if (table && ageIndex >= 0 && genderIndex >= 0) {
-        table.counts[ageIndex][genderIndex] += 1;
-      }
-
-      const care = careByCategory[result.categoryId];
-      if (care) {
-        if (skincareLabel) {
-          const row = care.skincare.find((r) => r.label === skincareLabel);
-          if (row) row.count += 1;
-        }
-        if (supplementLabel) {
-          const row = care.supplement.find((r) => r.label === supplementLabel);
-          if (row) row.count += 1;
-        }
-      }
+      sessionCategoryRows.push({
+        sessionId: session.sessionId,
+        categoryId: result.categoryId,
+        ageIndex,
+        genderLabel,
+        skincareLabel: skincareLabel ?? null,
+        supplementLabel: supplementLabel ?? null,
+        durationLabel: result.durationOptionId != null ? durationOptionLabel.get(result.durationOptionId) ?? null : null,
+        skincareFreeText: answers.skincareBrandFreeText?.trim() || null,
+        supplementFreeText: answers.supplementBrandFreeText?.trim() || null,
+      });
     }
   }
 
@@ -164,9 +154,9 @@ export default async function AdminDashboardPage() {
     totals,
     categoryCounts,
     monthlyTrend,
-    categoryOptions: categoryOptions.map((c) => ({ categoryId: c.categoryId, name: c.name })),
-    ageGenderByCategory,
-    careByCategory,
+    categoryOptions,
+    ageLabels: ageLabelsOrdered,
+    sessionCategoryRows,
     freeTexts: { skincare: skincareFreeTexts, supplement: supplementFreeTexts },
   };
 

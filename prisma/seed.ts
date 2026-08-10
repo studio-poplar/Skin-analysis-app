@@ -706,6 +706,25 @@ async function main() {
     "ブランド・企業への信頼",
   ]);
 
+  console.log("質問(症状の継続期間、v10追加)を投入中...");
+  // 症状カテゴリごとに1問ずつ繰り返し聞く共通質問(parentCategoryIdは持たない)。
+  // step:3はmapping画面の「選択肢ごとの製品指定」(parentCategoryId必須)で既に使われているため、
+  // 混同を避けるためstep:4とする。
+  const q4Duration = await getOrCreateQuestion(
+    4,
+    "その症状は、いつ頃から気になっていますか?",
+    QuestionType.single_select,
+    null,
+    "symptom_duration"
+  );
+  await getOrCreateOptions(q4Duration.questionId, [
+    "最近気になり始めた",
+    "少し前から",
+    "半年以上前から",
+    "数年前から",
+    "かなり前から(ずっと)",
+  ]);
+
   console.log("管理者アカウントを投入中...");
   const existingAdmin = await prisma.adminUser.findUnique({ where: { username: "admin" } });
   if (!existingAdmin) {
@@ -837,6 +856,12 @@ const siteContentDefaults: { key: string; page: string; label: string; value: st
     page: "diagnosis",
     label: "Step3見出し({genre}がジャンル名に置換されます)",
     value: "「{genre}」について、気になる症状は?",
+  },
+  {
+    key: "diagnosis.duration_heading_template",
+    page: "diagnosis",
+    label: "継続期間の質問見出し({category}が症状名、{question}が質問文に置換されます、v10追加)",
+    value: "「{category}」について、{question}",
   },
   { key: "diagnosis.submit_button", page: "diagnosis", label: "診断結果を見るボタン", value: "診断結果を見る" },
   {

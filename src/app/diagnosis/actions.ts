@@ -9,6 +9,10 @@ export async function submitDiagnosisAction(input: SubmitDiagnosisInput) {
   if (input.lifestyleAnswers.some((a) => a.optionIds.length === 0)) {
     throw new Error("ライフスタイルに関する質問に未回答のものがあります。");
   }
+  const answeredDurationCategoryIds = new Set(input.categoryDurations.map((d) => d.categoryId));
+  if (!input.selectedCategoryIds.every((id) => answeredDurationCategoryIds.has(id))) {
+    throw new Error("症状の継続期間に未回答のものがあります。");
+  }
   const sessionId = await submitDiagnosis(input);
   return { sessionId };
 }

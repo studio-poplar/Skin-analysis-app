@@ -20,11 +20,14 @@ export type DiagnosisFormData = {
     name: string;
     categories: { categoryId: string; name: string }[];
   }[];
+  // v10追加: ④症状の深掘りで選んだ症状カテゴリごとに1問ずつ聞く「継続期間」の質問(step:4、共通1問)。
+  // 投入されていない場合はnull(その場合、継続期間の質問はスキップする)。
+  durationQuestion: LifestyleQuestion | null;
 };
 
 // 診断フォームの初期表示に必要な質問・ジャンル・症状カテゴリ一式を取得する
 export async function getDiagnosisFormData(): Promise<DiagnosisFormData> {
-  const [basicQuestions, lifestyleQuestions, genres] = await Promise.all([
+  const [basicQuestions, lifestyleQuestions, genres, durationQuestions] = await Promise.all([
     // 表示順は管理画面でドラッグ&ドロップ並び替え可能な sortOrder に従う(v8)。
     // 「年代」「性別」どちらかの識別はroleで行う(questionTextや並び順には依存しない)。
     prisma.question.findMany({
@@ -42,6 +45,12 @@ export async function getDiagnosisFormData(): Promise<DiagnosisFormData> {
       where: { isActive: true },
       orderBy: { sortOrder: "asc" },
       include: { categories: { where: { isActive: true }, orderBy: { sortOrder: "asc" } } },
+    }),
+    // 症状の継続期間(step:4、role: symptom_duration)。カテゴリに紐づかない共通の1問。
+    prisma.question.findMany({
+      where: { step: 4, role: "symptom_duration" },
+      include: { options: { orderBy: { sortOrder: "asc" } } },
+      take: 1,
     }),
   ]);
 
@@ -72,6 +81,15 @@ export async function getDiagnosisFormData(): Promise<DiagnosisFormData> {
       name: g.name,
       categories: g.categories.map((c) => ({ categoryId: c.categoryId, name: c.name })),
     })),
+    durationQuestion: durationQuestions[0]
+      ? {
+          questionId: durationQuestions[0].questionId,
+          questionText: durationQuestions[0].questionText,
+          questionType: durationQuestions[0].questionType,
+          role: durationQuestions[0].role,
+          options: durationQuestions[0].options.map((o) => ({ optionId: o.optionId, text: o.optionText })),
+        }
+      : null,
   };
 }
 
@@ -85,6 +103,8 @@ export type SubmitDiagnosisInput = {
   supplementBrandFreeText: string;
   selectedGenreIds: string[];
   selectedCategoryIds: string[]; // 選択されたジャンルの中から選んだ症状カテゴリ(フラット)
+  // v10追加: 選んだ症状カテゴリごとの継続期間の回答(1カテゴリ=1回答)
+  categoryDurations: { categoryId: string; durationOptionId: number }[];
 };
 
 // おすすめのお手入れステップの並び順(管理画面のCareStepOrderで編集可能。該当しない製品カテゴリは末尾に押し出す)
@@ -106,6 +126,8 @@ export async function submitDiagnosis(input: SubmitDiagnosisInput): Promise<stri
     },
   });
 
+  const durationByCategory = new Map(input.categoryDurations.map((d) => [d.categoryId, d.durationOptionId]));
+
   for (const category of categories) {
     // isActive:falseの製品(取扱注意・一時販売停止中等)は新規の診断結果には出さない
     const mapped = await prisma.productConcernMap.findMany({
@@ -118,6 +140,7 @@ export async function submitDiagnosis(input: SubmitDiagnosisInput): Promise<stri
         sessionId: session.sessionId,
         categoryId: category.categoryId,
         recommendedProductIds: mapped.map((m) => m.productId),
+        durationOptionId: durationByCategory.get(category.categoryId) ?? null,
       },
     });
   }
