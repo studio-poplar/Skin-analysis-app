@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { backgroundStyleFor } from "@/lib/background";
 import { prisma } from "@/lib/prisma";
 import { checkResultSessionStatus, getDiagnosisResult } from "@/lib/diagnosis";
-import { categoryStyleFor } from "@/lib/product-categories";
+import { resolveCategoryStyle } from "@/lib/product-categories";
 import { isPreviewMode } from "@/lib/preview";
 import { getContentMap } from "@/lib/site-content";
 import { LineCta } from "../LineCta";
@@ -52,14 +52,16 @@ export default async function DiagnosisResultPage(props: PageProps<"/diagnosis/r
     );
   }
 
-  const [result, c, lineSettings] = await Promise.all([
+  const [result, c, lineSettings, categoryColorRows] = await Promise.all([
     getDiagnosisResult(sessionId, preview),
     getContentMap(CONTENT_KEYS),
     prisma.lineSettings.findUnique({ where: { id: 1 } }),
+    prisma.categoryColor.findMany(),
   ]);
   if (!result) {
     notFound();
   }
+  const categoryColorMap = new Map(categoryColorRows.map((r) => [r.category, r]));
 
   const lineUrl = result.lineOverride?.url || lineSettings?.lineUrl || process.env.NEXT_PUBLIC_LINE_URL || "https://line.me/";
   const lineButtonText = lineSettings?.buttonText || "LINEで相談する";
@@ -132,9 +134,9 @@ export default async function DiagnosisResultPage(props: PageProps<"/diagnosis/r
                         <p className="mb-3 text-xs font-semibold text-zinc-400">{c["result.support_label"] ?? "それを補完するアイテム"}</p>
                         <div className="space-y-3">
                           {block.products.map((p) => {
-                            const style = categoryStyleFor(p.category);
+                            const style = resolveCategoryStyle(p.category, categoryColorMap);
                             return (
-                            <div key={p.productId} className={`rounded-xl border-2 p-3 ${style.border}`}>
+                            <div key={p.productId} className="rounded-xl border-2 p-3" style={{ borderColor: style.border }}>
                               <a
                                 href={p.productUrl}
                                 target="_blank"
@@ -143,7 +145,10 @@ export default async function DiagnosisResultPage(props: PageProps<"/diagnosis/r
                               >
                                 <div>
                                   <div className="mb-1 flex flex-wrap items-center gap-1.5">
-                                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${style.badge}`}>
+                                    <span
+                                      className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold"
+                                      style={{ backgroundColor: style.tagBg, color: style.tagText }}
+                                    >
                                       {p.category}
                                     </span>
                                     <p className="text-sm font-semibold text-zinc-800">{p.nameJp}</p>
@@ -197,14 +202,27 @@ export default async function DiagnosisResultPage(props: PageProps<"/diagnosis/r
           <section className="mb-10">
             <h2 className="mb-4 text-base font-bold text-zinc-900">{c["result.care_steps_heading"] ?? "おすすめのお手入れステップ"}</h2>
             <ol className="space-y-3">
-              {result.careSteps.map((p, i) => (
-                <li key={p.productId} className="flex items-center gap-3">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-xs font-bold text-white">
-                    {i + 1}
-                  </span>
-                  <span className="text-sm text-zinc-700">{p.nameJp}</span>
-                </li>
-              ))}
+              {result.careSteps.map((p, i) => {
+                const style = resolveCategoryStyle(p.category, categoryColorMap);
+                return (
+                  <li
+                    key={p.productId}
+                    className="flex items-center gap-3 rounded-xl border-2 bg-white p-3"
+                    style={{ borderColor: style.border }}
+                  >
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-xs font-bold text-white">
+                      {i + 1}
+                    </span>
+                    <span className="flex-1 text-sm text-zinc-700">{p.nameJp}</span>
+                    <span
+                      className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold"
+                      style={{ backgroundColor: style.tagBg, color: style.tagText }}
+                    >
+                      {p.category}
+                    </span>
+                  </li>
+                );
+              })}
             </ol>
           </section>
         )}

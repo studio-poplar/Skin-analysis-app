@@ -18,29 +18,40 @@ export const PRODUCT_CATEGORIES = [
 
 export type ProductCategory = (typeof PRODUCT_CATEGORIES)[number];
 
-// v11追加: 診断結果ページ「それを補完するアイテム」でカテゴリを一目で区別できるようにするための
-// タグ・枠線の配色。Tailwindはクラス名を静的に解析するため、`bg-${color}-100`のような動的生成では
-// なく、カテゴリごとに完全なクラス文字列をここで固定して持つ。
-export const PRODUCT_CATEGORY_STYLES: Record<string, { badge: string; border: string }> = {
-  "化粧水": { badge: "bg-sky-100 text-sky-700", border: "border-sky-300" },
-  "美容液(部分用)": { badge: "bg-violet-100 text-violet-700", border: "border-violet-300" },
-  "美容液(顔・首用)": { badge: "bg-indigo-100 text-indigo-700", border: "border-indigo-300" },
-  "美容液(顔・首・デコルテ用)": { badge: "bg-purple-100 text-purple-700", border: "border-purple-300" },
-  "クリーム": { badge: "bg-amber-100 text-amber-700", border: "border-amber-300" },
-  "乳液(SPF付き)": { badge: "bg-orange-100 text-orange-700", border: "border-orange-300" },
-  "洗顔デバイス": { badge: "bg-cyan-100 text-cyan-700", border: "border-cyan-300" },
-  "ヘアケア": { badge: "bg-teal-100 text-teal-700", border: "border-teal-300" },
-  "美容機器": { badge: "bg-slate-200 text-slate-700", border: "border-slate-400" },
-  "サプリメント": { badge: "bg-emerald-100 text-emerald-700", border: "border-emerald-300" },
-  "ボディケア": { badge: "bg-pink-100 text-pink-700", border: "border-pink-300" },
-  "メイクアップ": { badge: "bg-fuchsia-100 text-fuchsia-700", border: "border-fuchsia-300" },
-  "オーラルケア": { badge: "bg-lime-100 text-lime-700", border: "border-lime-300" },
-  "洗顔料": { badge: "bg-blue-100 text-blue-700", border: "border-blue-300" },
-  "セット商品": { badge: "bg-zinc-200 text-zinc-700", border: "border-zinc-400" },
+export type CategoryStyle = { tagBg: string; tagText: string; border: string };
+
+// v11(節7-21)で導入し、v11差分指示書(節7-22)で管理画面(/admin/design)から設定可能にした。
+// カテゴリごとのタグ色・枠線色は`CategoryColor`テーブルに保存され、管理画面で自由な16進数カラーを
+// 設定できるため、Tailwindの固定クラス文字列ではなくインラインstyleで適用する。
+// 未設定のカテゴリはこのグレー系のデフォルトにフォールバックする(指示書の要件どおり)。
+export const DEFAULT_CATEGORY_STYLE: CategoryStyle = {
+  tagBg: "#e4e4e7",
+  tagText: "#3f3f46",
+  border: "#a1a1aa",
 };
 
-const FALLBACK_CATEGORY_STYLE = { badge: "bg-zinc-100 text-zinc-600", border: "border-zinc-200" };
+// 相対輝度からタグの文字色(黒 or 白)を自動判定する。管理画面ではタグ背景色・枠線色の2つだけを
+// 設定すればよいようにし、コントラストの取れる文字色は自動計算する(dataviz方針: 塗りの明度で
+// 白/インクを選ぶ)。
+export function contrastingTextColor(hex: string): string {
+  const m = /^#([0-9a-fA-F]{6})$/.exec(hex);
+  if (!m) return "#0b0b0b";
+  const r = parseInt(m[1].slice(0, 2), 16);
+  const g = parseInt(m[1].slice(2, 4), 16);
+  const b = parseInt(m[1].slice(4, 6), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.6 ? "#0b0b0b" : "#ffffff";
+}
 
-export function categoryStyleFor(category: string): { badge: string; border: string } {
-  return PRODUCT_CATEGORY_STYLES[category] ?? FALLBACK_CATEGORY_STYLE;
+export function resolveCategoryStyle(
+  category: string,
+  colorMap: Map<string, { tagColorHex: string; borderColorHex: string }>
+): CategoryStyle {
+  const override = colorMap.get(category);
+  if (!override) return DEFAULT_CATEGORY_STYLE;
+  return {
+    tagBg: override.tagColorHex,
+    tagText: contrastingTextColor(override.tagColorHex),
+    border: override.borderColorHex,
+  };
 }

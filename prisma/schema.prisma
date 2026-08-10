@@ -252,6 +252,19 @@ model DesignSettings {
   @@map("design_settings")
 }
 
+// v11追加: 製品カテゴリ(src/lib/product-categories.tsのPRODUCT_CATEGORIES)ごとの
+// タグ色・カード枠線色。/admin/designから設定する。行が無いカテゴリはコード側でグレー系の
+// デフォルト配色にフォールバックする(節7-21・7-22参照)。categoryを自然キーとして使う
+// (専用テーブルにしたのは、カテゴリ一覧の増減に強くするため。指示書の技術メモの案2を採用)。
+model CategoryColor {
+  category       String   @id
+  tagColorHex    String   @map("tag_color_hex")
+  borderColorHex String   @map("border_color_hex")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("category_colors")
+}
+
 // LINE誘導のグローバル設定(単一行、id=1固定)。カテゴリ別の上書きはConcernCategory側に持つ。
 model LineSettings {
   id             Int      @id @default(1)

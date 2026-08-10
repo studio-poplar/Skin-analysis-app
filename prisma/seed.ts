@@ -725,6 +725,34 @@ async function main() {
     "かなり前から(ずっと)",
   ]);
 
+  console.log("カテゴリタグ・枠線色(v11)を投入中...");
+  // 節7-21で最初に実装した固定配色(Tailwindのsky-100/300等)を、そのままCategoryColorの初期値として
+  // 引き継ぐ(運営者は/admin/designから自由に変更できる)。
+  const categoryColorDefaults: { category: string; tagColorHex: string; borderColorHex: string }[] = [
+    { category: "化粧水", tagColorHex: "#e0f2fe", borderColorHex: "#7dd3fc" },
+    { category: "美容液(部分用)", tagColorHex: "#ede9fe", borderColorHex: "#c4b5fd" },
+    { category: "美容液(顔・首用)", tagColorHex: "#e0e7ff", borderColorHex: "#a5b4fc" },
+    { category: "美容液(顔・首・デコルテ用)", tagColorHex: "#f3e8ff", borderColorHex: "#d8b4fe" },
+    { category: "クリーム", tagColorHex: "#fef3c7", borderColorHex: "#fcd34d" },
+    { category: "乳液(SPF付き)", tagColorHex: "#ffedd5", borderColorHex: "#fdba74" },
+    { category: "洗顔デバイス", tagColorHex: "#cffafe", borderColorHex: "#67e8f9" },
+    { category: "ヘアケア", tagColorHex: "#ccfbf1", borderColorHex: "#5eead4" },
+    { category: "美容機器", tagColorHex: "#e2e8f0", borderColorHex: "#94a3b8" },
+    { category: "サプリメント", tagColorHex: "#d1fae5", borderColorHex: "#6ee7b7" },
+    { category: "ボディケア", tagColorHex: "#fce7f3", borderColorHex: "#f9a8d4" },
+    { category: "メイクアップ", tagColorHex: "#fae8ff", borderColorHex: "#f0abfc" },
+    { category: "オーラルケア", tagColorHex: "#ecfccb", borderColorHex: "#bef264" },
+    { category: "洗顔料", tagColorHex: "#dbeafe", borderColorHex: "#93c5fd" },
+    { category: "セット商品", tagColorHex: "#e4e4e7", borderColorHex: "#a1a1aa" },
+  ];
+  for (const c of categoryColorDefaults) {
+    await prisma.categoryColor.upsert({
+      where: { category: c.category },
+      update: {},
+      create: c,
+    });
+  }
+
   console.log("管理者アカウントを投入中...");
   const existingAdmin = await prisma.adminUser.findUnique({ where: { username: "admin" } });
   if (!existingAdmin) {

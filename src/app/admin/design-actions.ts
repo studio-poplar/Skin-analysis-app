@@ -51,3 +51,34 @@ export async function updateDesignSettingsAction(formData: FormData) {
 
   redirect("/admin/design?saved=1");
 }
+
+// v11差分指示書(節7-22)追加: カテゴリごとのタグ色・枠線色。categoryを自然キーにupsertする。
+export async function updateCategoryColorAction(formData: FormData) {
+  await assertRole("admin");
+
+  const category = String(formData.get("category") ?? "").trim();
+  const tagColorHex = String(formData.get("tagColorHex") ?? "").trim();
+  const borderColorHex = String(formData.get("borderColorHex") ?? "").trim();
+
+  if (!category || !/^#[0-9a-fA-F]{6}$/.test(tagColorHex) || !/^#[0-9a-fA-F]{6}$/.test(borderColorHex)) {
+    redirect("/admin/design?error=category_color");
+  }
+
+  await prisma.categoryColor.upsert({
+    where: { category },
+    update: { tagColorHex, borderColorHex },
+    create: { category, tagColorHex, borderColorHex },
+  });
+
+  redirect("/admin/design?saved=1");
+}
+
+// 個別カテゴリの色設定を削除し、コード側のグレー系デフォルトに戻す。
+export async function resetCategoryColorAction(formData: FormData) {
+  await assertRole("admin");
+
+  const category = String(formData.get("category") ?? "").trim();
+  await prisma.categoryColor.deleteMany({ where: { category } });
+
+  redirect("/admin/design?saved=1");
+}
