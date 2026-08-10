@@ -42,6 +42,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <Link href="/admin/faq" className="hover:text-zinc-900">
               FAQ管理
             </Link>
+            <Link href="/admin/articles" className="hover:text-zinc-900">
+              関連記事管理
+            </Link>
             {isAdmin && (
               <Link href="/admin/design" className="hover:text-zinc-900">
                 デザイン設定

@@ -4,21 +4,23 @@ import { useMemo, useRef, useState } from "react";
 
 type PickableProduct = { productId: number; nameJp: string; productCode: string };
 
-// 「優先順位リスト」への製品追加フォーム用の検索付きセレクタ(v9追加)。
-// 製品数が多い(2026-08時点で約90件)ため、素のドロップダウンでは目的の製品を探しにくいという要望に対応。
-// 入力欄に製品名・製品コードの一部を入力すると候補が絞り込まれ、クリックで選択すると
-// hidden inputにproductIdがセットされてフォーム送信できる(<select>の代替)。
+// 製品検索付きセレクタ(v9で/admin/mappingの「優先順位リスト」向けに追加、v11で/admin/articlesと共有するため
+// src/app/admin/直下へ移動)。製品数が多い(2026-08時点で約90件)ため、素のドロップダウンでは
+// 目的の製品を探しにくいという要望に対応。入力欄に製品名・製品コードの一部を入力すると候補が絞り込まれ、
+// クリックで選択するとhidden inputにproductIdがセットされてフォーム送信できる(<select>の代替)。
 export function ProductPicker({
   name,
   products,
   placeholder,
+  defaultSelected,
 }: {
   name: string;
   products: PickableProduct[];
   placeholder?: string;
+  defaultSelected?: PickableProduct;
 }) {
-  const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<PickableProduct | null>(null);
+  const [query, setQuery] = useState(defaultSelected?.nameJp ?? "");
+  const [selected, setSelected] = useState<PickableProduct | null>(defaultSelected ?? null);
   const [open, setOpen] = useState(false);
   const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 

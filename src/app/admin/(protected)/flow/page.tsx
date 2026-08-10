@@ -4,6 +4,8 @@ import {
   createGenreAction,
   deleteCategoryAction,
   deleteGenreAction,
+  importCategoriesCsvAction,
+  importGenresCsvAction,
   toggleCategoryActiveAction,
   toggleGenreActiveAction,
   updateCategoryAction,
@@ -22,6 +24,12 @@ export default async function AdminFlowPage(props: PageProps<"/admin/flow">) {
   const created = searchParams?.created === "1";
   const saved = searchParams?.saved === "1";
   const errorKey = typeof searchParams?.error === "string" ? searchParams.error : undefined;
+  const csvTarget = searchParams?.csvTarget;
+  const csvCreated = searchParams?.csvCreated;
+  const csvUpdated = searchParams?.csvUpdated;
+  const csvErrors = typeof searchParams?.csvErrors === "string" ? searchParams.csvErrors : undefined;
+  const csvError = searchParams?.csvError;
+  const csvTargetLabel = csvTarget === "genres" ? "ジャンル" : csvTarget === "categories" ? "症状カテゴリ" : "";
 
   const genres = await prisma.genre.findMany({
     orderBy: { sortOrder: "asc" },
@@ -61,6 +69,17 @@ export default async function AdminFlowPage(props: PageProps<"/admin/flow">) {
           {ERROR_MESSAGES[errorKey] ?? "エラーが発生しました。"}
         </p>
       )}
+      {(csvCreated !== undefined || csvUpdated !== undefined) && (
+        <div className="mb-6 rounded-lg bg-emerald-50 px-4 py-2 text-sm text-emerald-700">
+          <p>
+            {csvTargetLabel}CSV取り込み完了: 新規{csvCreated ?? 0}件・更新{csvUpdated ?? 0}件
+          </p>
+          {csvErrors && <p className="mt-1 text-xs text-amber-700">スキップされた行: {csvErrors}</p>}
+        </div>
+      )}
+      {csvError === "missing_file" && (
+        <p className="mb-6 rounded-lg bg-rose-50 px-4 py-2 text-sm text-rose-700">CSVファイルを選択してください。</p>
+      )}
 
       <section className="mb-10 rounded-2xl border-2 border-zinc-200 p-5">
         <h2 className="mb-4 text-base font-bold text-zinc-900">Step2: 基本情報(年代・性別)</h2>
@@ -82,6 +101,48 @@ export default async function AdminFlowPage(props: PageProps<"/admin/flow">) {
         <p className="mb-4 text-xs text-zinc-500">
           ジャンル(Step3で選ぶ「気になること」)と、その中の症状カテゴリ(Step4で選ぶ「症状の深掘り」)をまとめて編集します。
         </p>
+
+        {/* v11追加: CSV入出力(ジャンル・症状カテゴリ)。基本情報・ライフスタイル設問は対象外(フォーム編集のみ) */}
+        <div className="mb-6 space-y-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
+          <p className="text-xs font-semibold text-zinc-500">CSV入出力</p>
+          <div className="flex flex-wrap items-center gap-3 border-b border-zinc-100 pb-3">
+            <span className="w-24 shrink-0 text-xs text-zinc-500">ジャンル</span>
+            <a href="/admin/flow/export-genres" className="rounded-full border border-zinc-300 px-3 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-50">
+              CSVをダウンロード
+            </a>
+            <form action={importGenresCsvAction} encType="multipart/form-data" className="flex items-center gap-2">
+              <input
+                type="file"
+                name="file"
+                accept=".csv,text/csv"
+                required
+                className="text-xs text-zinc-600 file:mr-2 file:rounded-full file:border-0 file:bg-zinc-100 file:px-3 file:py-1 file:text-xs file:font-semibold file:text-zinc-700 hover:file:bg-zinc-200"
+              />
+              <button type="submit" className="rounded-full bg-zinc-900 px-3 py-1 text-xs font-semibold text-white hover:bg-zinc-700">
+                取り込む
+              </button>
+            </form>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="w-24 shrink-0 text-xs text-zinc-500">症状カテゴリ</span>
+            <a href="/admin/flow/export-categories" className="rounded-full border border-zinc-300 px-3 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-50">
+              CSVをダウンロード
+            </a>
+            <form action={importCategoriesCsvAction} encType="multipart/form-data" className="flex items-center gap-2">
+              <input
+                type="file"
+                name="file"
+                accept=".csv,text/csv"
+                required
+                className="text-xs text-zinc-600 file:mr-2 file:rounded-full file:border-0 file:bg-zinc-100 file:px-3 file:py-1 file:text-xs file:font-semibold file:text-zinc-700 hover:file:bg-zinc-200"
+              />
+              <button type="submit" className="rounded-full bg-zinc-900 px-3 py-1 text-xs font-semibold text-white hover:bg-zinc-700">
+                取り込む
+              </button>
+            </form>
+          </div>
+        </div>
+
         <h3 className="mb-3 text-sm font-semibold text-zinc-700">ジャンル・症状カテゴリ</h3>
         <div className="space-y-6">
           {genres.map((genre) => (

@@ -12,6 +12,8 @@ import {
   type AdminRole,
 } from "@/lib/admin-auth";
 import { PREVIEW_COOKIE_NAME } from "@/lib/preview";
+import { parseCsv, parseCsvBool } from "@/lib/csv";
+import { PRODUCT_CATEGORIES } from "@/lib/product-categories";
 
 export async function loginAction(formData: FormData) {
   const username = String(formData.get("username") ?? "").trim();
@@ -170,6 +172,87 @@ export async function deleteProductAction(formData: FormData) {
   await prisma.product.delete({ where: { productId } });
 
   redirect("/admin/products?saved=1");
+}
+
+// v11追加: CSVアップロードで製品を一括登録・更新する。productCodeをキーに既存行を上書き、
+// 無ければ新規作成する。行単位でバリデーションし、不正な行はスキップして続行する
+// (全体を差し戻すのではなく、正常な行だけを反映する方式。指示書の「詳細は実装時に決定」を受けての判断)。
+export async function importProductsCsvAction(formData: FormData) {
+  await assertRole("editor");
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    redirect("/admin/products?csvError=missing_file");
+  }
+
+  const text = await file.text();
+  const rows = parseCsv(text);
+
+  let created = 0;
+  let updated = 0;
+  const errors: string[] = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    const lineNo = i + 2; // 1行目はヘッダーのため
+
+    const productCode = (r.productCode ?? "").trim();
+    const nameJp = (r.nameJp ?? "").trim();
+    if (!productCode || !nameJp) {
+      errors.push(`${lineNo}行目: productCode/nameJpが空です`);
+      continue;
+    }
+
+    const category = (r.category ?? "").trim();
+    if (!PRODUCT_CATEGORIES.includes(category as (typeof PRODUCT_CATEGORIES)[number])) {
+      errors.push(`${lineNo}行目(${productCode}): カテゴリ「${category}」は不正です`);
+      continue;
+    }
+
+    const priceJpy = Number(r.priceJpy);
+    if (!Number.isFinite(priceJpy)) {
+      errors.push(`${lineNo}行目(${productCode}): 価格が数値ではありません`);
+      continue;
+    }
+
+    const productData = {
+      nameJp,
+      nameUsRef: r.nameUsRef?.trim() || null,
+      category,
+      priceJpy,
+      productUrl: r.productUrl?.trim() ?? "",
+      isActive: parseCsvBool(r.isActive),
+    };
+
+    const existing = await prisma.product.findUnique({ where: { productCode } });
+    let productId: number;
+    if (existing) {
+      await prisma.product.update({ where: { productCode }, data: productData });
+      productId = existing.productId;
+      updated++;
+    } else {
+      const createdProduct = await prisma.product.create({ data: { productCode, ...productData } });
+      productId = createdProduct.productId;
+      created++;
+    }
+
+    const clinicalData = {
+      summaryText: r.summaryText ?? "",
+      hasAntiWrinkleTest: parseCsvBool(r.hasAntiWrinkleTest),
+      sourceUrl: r.sourceUrl?.trim() || null,
+    };
+    await prisma.productClinicalData.upsert({
+      where: { productId },
+      update: clinicalData,
+      create: { productId, ...clinicalData },
+    });
+  }
+
+  const params = new URLSearchParams();
+  params.set("csvCreated", String(created));
+  params.set("csvUpdated", String(updated));
+  if (errors.length > 0) params.set("csvErrors", errors.slice(0, 15).join(" / "));
+  redirect(`/admin/products?${params.toString()}`);
 }
 
 export async function updateKnowledgeAction(formData: FormData) {

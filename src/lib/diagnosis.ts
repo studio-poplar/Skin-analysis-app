@@ -176,6 +176,8 @@ export type DiagnosisResultView = {
     category: string;
     productUrl: string;
   }[];
+  // v11追加: おすすめのお手入れステップに登場する製品に紐付く関連記事(最大3件)。
+  relatedArticles: { id: number; title: string; url: string }[];
   // 結果に含まれるカテゴリの中で最も優先度の高い(ジャンル・カテゴリ順で先頭の)個別LINE設定。
   // なければnull(その場合は共通のLineSettingsを使う)
   lineOverride: { url: string; message: string | null } | null;
@@ -335,7 +337,27 @@ export async function getDiagnosisResult(
       productUrl: p.productUrl,
     }));
 
-  return { sessionId, genreGroups, careSteps, lineOverride };
+  // v11追加: おすすめのお手入れステップに登場する製品(careSteps)に紐付く関連記事を、
+  // その並び順(製品ごとにお手入れステップの順→記事のsortOrder順)で集め、最大3件に絞る。
+  const careStepProductIds = careSteps.map((p) => p.productId);
+  const articleRows =
+    careStepProductIds.length > 0
+      ? await prisma.relatedArticle.findMany({
+          where: { productId: { in: careStepProductIds }, isActive: true },
+          orderBy: { sortOrder: "asc" },
+        })
+      : [];
+  const articlesByProductId = new Map<number, typeof articleRows>();
+  for (const a of articleRows) {
+    if (!articlesByProductId.has(a.productId)) articlesByProductId.set(a.productId, []);
+    articlesByProductId.get(a.productId)!.push(a);
+  }
+  const relatedArticles = careStepProductIds
+    .flatMap((id) => articlesByProductId.get(id) ?? [])
+    .slice(0, 3)
+    .map((a) => ({ id: a.id, title: a.title, url: a.url }));
+
+  return { sessionId, genreGroups, careSteps, relatedArticles, lineOverride };
 }
 
 export async function markLineRedirectClicked(sessionId: string) {

@@ -1,12 +1,22 @@
 import { prisma } from "@/lib/prisma";
 import { PRODUCT_CATEGORIES } from "@/lib/product-categories";
-import { createProductAction, deleteProductAction, toggleProductActiveAction, updateProductAction } from "../../actions";
+import {
+  createProductAction,
+  deleteProductAction,
+  importProductsCsvAction,
+  toggleProductActiveAction,
+  updateProductAction,
+} from "../../actions";
 
 export default async function AdminProductsPage(props: PageProps<"/admin/products">) {
   const searchParams = await props.searchParams;
   const saved = searchParams?.saved === "1";
   const created = searchParams?.created === "1";
   const error = searchParams?.error;
+  const csvCreated = searchParams?.csvCreated;
+  const csvUpdated = searchParams?.csvUpdated;
+  const csvErrors = typeof searchParams?.csvErrors === "string" ? searchParams.csvErrors : undefined;
+  const csvError = searchParams?.csvError;
 
   const products = await prisma.product.findMany({
     include: { clinicalData: true },
@@ -36,6 +46,44 @@ export default async function AdminProductsPage(props: PageProps<"/admin/product
           この製品は過去の診断結果で使われているため削除できません。「取扱中」のチェックを外して非表示にしてください。
         </p>
       )}
+      {(csvCreated !== undefined || csvUpdated !== undefined) && (
+        <div className="mb-6 rounded-lg bg-emerald-50 px-4 py-2 text-sm text-emerald-700">
+          <p>
+            CSV取り込み完了: 新規{csvCreated ?? 0}件・更新{csvUpdated ?? 0}件
+          </p>
+          {csvErrors && (
+            <p className="mt-1 text-xs text-amber-700">
+              スキップされた行: {csvErrors}
+              {csvErrors.split(" / ").length >= 15 && "(他あり)"}
+            </p>
+          )}
+        </div>
+      )}
+      {csvError === "missing_file" && (
+        <p className="mb-6 rounded-lg bg-rose-50 px-4 py-2 text-sm text-rose-700">CSVファイルを選択してください。</p>
+      )}
+
+      {/* v11追加: CSV入出力(製品管理) */}
+      <div className="mb-8 flex flex-wrap items-center gap-3 rounded-xl bg-white p-5 shadow-sm ring-1 ring-zinc-100">
+        <a
+          href="/admin/products/export"
+          className="rounded-full border border-zinc-300 px-4 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
+        >
+          CSVをダウンロード
+        </a>
+        <form action={importProductsCsvAction} encType="multipart/form-data" className="flex items-center gap-2">
+          <input
+            type="file"
+            name="file"
+            accept=".csv,text/csv"
+            required
+            className="text-xs text-zinc-600 file:mr-2 file:rounded-full file:border-0 file:bg-zinc-100 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-zinc-700 hover:file:bg-zinc-200"
+          />
+          <button type="submit" className="rounded-full bg-zinc-900 px-4 py-1.5 text-xs font-semibold text-white hover:bg-zinc-700">
+            CSVを取り込む(productCodeで新規追加・上書き)
+          </button>
+        </form>
+      </div>
 
       <details className="mb-8 rounded-xl bg-white p-5 shadow-sm ring-1 ring-zinc-100">
         <summary className="cursor-pointer font-semibold text-zinc-900">新しい製品を追加</summary>

@@ -884,6 +884,7 @@ const siteContentDefaults: { key: string; page: string; label: string; value: st
     value: "この症状に対応するご提案は現在準備中です。LINEで個別にご相談ください。",
   },
   { key: "result.care_steps_heading", page: "result", label: "お手入れステップ見出し", value: "おすすめのお手入れステップ" },
+  { key: "result.related_articles_heading", page: "result", label: "関連記事見出し(v11追加)", value: "関連記事" },
   {
     key: "result.cta_intro",
     page: "result",

@@ -1,5 +1,16 @@
 import { prisma } from "@/lib/prisma";
-import { publishContentDraftAction, saveContentDraftAction, updateContentAction } from "../../content-actions";
+import {
+  publishContentDraftAction,
+  saveContentDraftAction,
+  updateContentAction,
+  uploadBackgroundImageAction,
+} from "../../content-actions";
+
+const UPLOAD_ERROR_MESSAGES: Record<string, string> = {
+  missing_file: "ファイルを選択してください。",
+  upload_failed:
+    "アップロードに失敗しました。Vercel Blobストアが未設定の可能性があります(BLOB_READ_WRITE_TOKEN)。URL入力欄から設定することもできます。",
+};
 
 // 実際に閲覧者へ表示している画面(Step)ごとにグルーピングする。
 // 1つのキーが複数Stepの画面で使い回されている場合(選択のヒント文言・次へボタン等)は、
@@ -9,7 +20,7 @@ const STEP_GROUPS: { title: string; keys: string[] }[] = [
   { title: "Step2: 基本情報(年代・性別)", keys: ["diagnosis.step1_label", "diagnosis.step1_heading", "diagnosis.age_label", "diagnosis.gender_label", "diagnosis.next_button"] },
   { title: "Step3: ライフスタイル(スキンケア・サプリメント、2026-08-09追加)", keys: ["diagnosis.lifestyle_label", "diagnosis.lifestyle_heading", "diagnosis.lifestyle_intro", "diagnosis.multi_select_hint", "diagnosis.next_button"] },
   { title: "Step4・5: 気になること・症状の深掘り(継続期間の質問を含む、v10追加)", keys: ["diagnosis.step2_label", "diagnosis.step2_heading", "diagnosis.multi_select_hint", "diagnosis.symptom_heading_template", "diagnosis.duration_heading_template", "diagnosis.next_button", "diagnosis.submit_button", "diagnosis.loading_text"] },
-  { title: "Step6: 改善策の提案(結果画面)", keys: ["result.eyebrow", "result.heading", "result.summary_label", "result.why_label", "result.how_label", "result.support_label", "result.support_empty", "result.care_steps_heading", "result.cta_intro", "result.back_to_top"] },
+  { title: "Step6: 改善策の提案(結果画面)", keys: ["result.eyebrow", "result.heading", "result.summary_label", "result.why_label", "result.how_label", "result.support_label", "result.support_empty", "result.care_steps_heading", "result.related_articles_heading", "result.cta_intro", "result.back_to_top"] },
 ];
 
 // ページごとの背景画像URL。SiteImage(画像管理)に登録したURLからも選べるよう<datalist>で補助する。
@@ -26,6 +37,7 @@ export default async function AdminContentPage(props: PageProps<"/admin/content"
   const saved = searchParams?.saved === "1";
   const draftSaved = searchParams?.draftSaved === "1";
   const published = searchParams?.published === "1";
+  const uploadError = typeof searchParams?.uploadError === "string" ? searchParams.uploadError : undefined;
 
   const [contents, siteImages] = await Promise.all([
     prisma.siteContent.findMany({ orderBy: [{ page: "asc" }, { key: "asc" }] }),
@@ -91,6 +103,11 @@ export default async function AdminContentPage(props: PageProps<"/admin/content"
       {saved && <p className="mb-6 rounded-lg bg-emerald-50 px-4 py-2 text-sm text-emerald-700">保存しました。</p>}
       {draftSaved && <p className="mb-6 rounded-lg bg-amber-50 px-4 py-2 text-sm text-amber-700">下書きを保存しました。</p>}
       {published && <p className="mb-6 rounded-lg bg-emerald-50 px-4 py-2 text-sm text-emerald-700">公開しました。</p>}
+      {uploadError && (
+        <p className="mb-6 rounded-lg bg-rose-50 px-4 py-2 text-sm text-rose-700">
+          {UPLOAD_ERROR_MESSAGES[uploadError] ?? "エラーが発生しました。"}
+        </p>
+      )}
 
       <div className="space-y-10">
         {STEP_GROUPS.map((group) => {
@@ -111,7 +128,7 @@ export default async function AdminContentPage(props: PageProps<"/admin/content"
         <section className="rounded-2xl border-2 border-zinc-200 p-5">
           <h2 className="mb-1 text-base font-bold text-zinc-900">背景画像</h2>
           <p className="mb-4 text-xs text-zinc-500">
-            各ページの背景に表示する画像のURLを設定できます(空欄なら背景画像なし)。
+            各ページの背景に表示する画像は、URLの直接入力・ファイルアップロードのどちらでも設定できます(空欄なら背景画像なし)。
             <a href="/admin/images" className="underline">画像管理</a>に登録済みのURLは入力欄で候補表示されます。
           </p>
           <datalist id="site-image-urls">
@@ -126,23 +143,44 @@ export default async function AdminContentPage(props: PageProps<"/admin/content"
               const c = byKey.get(key);
               if (!c) return null;
               return (
-                <form key={key} action={updateContentAction} className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
-                  <input type="hidden" name="key" value={key} />
-                  <label className="mb-2 block text-sm">
-                    <span className="mb-1 block text-zinc-600">{label}</span>
+                <div key={key} id={key} className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
+                  <p className="mb-2 text-sm text-zinc-600">{label}</p>
+                  <form action={updateContentAction} className="mb-3">
+                    <input type="hidden" name="key" value={key} />
+                    <label className="mb-2 block text-sm">
+                      <span className="mb-1 block text-xs text-zinc-400">URLで指定</span>
+                      <input
+                        type="text"
+                        name="value"
+                        list="site-image-urls"
+                        defaultValue={c.value}
+                        placeholder="https://..."
+                        className="w-full rounded-lg border border-zinc-200 px-3 py-1.5 text-sm"
+                      />
+                    </label>
+                    <button type="submit" className="rounded-full bg-zinc-900 px-3 py-1 text-xs font-semibold text-white hover:bg-zinc-700">
+                      保存
+                    </button>
+                  </form>
+                  <form action={uploadBackgroundImageAction} encType="multipart/form-data" className="flex items-center gap-2 border-t border-zinc-100 pt-3">
+                    <input type="hidden" name="key" value={key} />
+                    <span className="text-xs text-zinc-400">またはアップロード:</span>
                     <input
-                      type="text"
-                      name="value"
-                      list="site-image-urls"
-                      defaultValue={c.value}
-                      placeholder="https://..."
-                      className="w-full rounded-lg border border-zinc-200 px-3 py-1.5 text-sm"
+                      type="file"
+                      name="file"
+                      accept="image/*"
+                      required
+                      className="text-xs text-zinc-600 file:mr-2 file:rounded-full file:border-0 file:bg-zinc-100 file:px-3 file:py-1 file:text-xs file:font-semibold file:text-zinc-700 hover:file:bg-zinc-200"
                     />
-                  </label>
-                  <button type="submit" className="rounded-full bg-zinc-900 px-3 py-1 text-xs font-semibold text-white hover:bg-zinc-700">
-                    保存
-                  </button>
-                </form>
+                    <button type="submit" className="rounded-full border border-zinc-300 px-3 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-50">
+                      アップロードして設定
+                    </button>
+                  </form>
+                  {c.value && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={c.value} alt="" className="mt-3 h-24 w-full rounded-lg object-cover" />
+                  )}
+                </div>
               );
             })}
           </div>

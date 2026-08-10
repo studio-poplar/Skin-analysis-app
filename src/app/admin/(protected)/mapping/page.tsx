@@ -8,7 +8,7 @@ import {
   updateCareStepAction,
   updateCategoryProductPriorityAction,
 } from "../../actions";
-import { ProductPicker } from "./ProductPicker";
+import { ProductPicker } from "../../ProductPicker";
 
 const ERROR_MESSAGES: Record<string, string> = {
   missing_product: "追加する製品を検索欄から選択してください。",

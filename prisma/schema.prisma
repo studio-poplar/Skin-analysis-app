@@ -25,9 +25,10 @@ model Product {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  clinicalData ProductClinicalData?
-  concernMaps  ProductConcernMap[]
-  optionMaps   OptionProductMap[]
+  clinicalData    ProductClinicalData?
+  concernMaps     ProductConcernMap[]
+  optionMaps      OptionProductMap[]
+  relatedArticles RelatedArticle[]
 
   @@map("products")
 }
@@ -288,4 +289,21 @@ model FAQItem {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("faq_items")
+}
+
+// v11追加: 診断結果ページ「関連記事」セクション用。製品ごとに手動で紐付ける外部記事リンク
+// (使い方・成分解説等)。おすすめのお手入れステップに登場する製品から関連記事を集めて表示する。
+model RelatedArticle {
+  id        Int      @id @default(autoincrement())
+  productId Int      @map("product_id")
+  title     String
+  url       String
+  sortOrder Int      @default(0) @map("sort_order")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  product Product @relation(fields: [productId], references: [productId], onDelete: Cascade)
+
+  @@map("related_articles")
 }

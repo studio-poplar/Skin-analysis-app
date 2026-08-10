@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { parseCsv, parseCsvBool } from "@/lib/csv";
 import { assertRole } from "./actions";
 
 // 管理画面のドラッグ&ドロップ並び替え(v8)から直接呼び出す(フォーム送信ではなく関数呼び出し)。
@@ -198,4 +199,113 @@ export async function removeBasicOptionAction(formData: FormData) {
   await prisma.questionOption.delete({ where: { optionId } });
 
   redirect("/admin/flow?saved=1");
+}
+
+// v11追加: 診断フロー管理のCSV入出力(ジャンル)。genreIdをキーに新規追加・上書きする。
+// 基本情報・ライフスタイル設問(Question/QuestionOption)はフォーム編集のみで、CSV対象は
+// ジャンル・症状カテゴリの表形式データに限定している(指示書の「段階導入」方針による)。
+export async function importGenresCsvAction(formData: FormData) {
+  await assertRole("editor");
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    redirect("/admin/flow?csvTarget=genres&csvError=missing_file");
+  }
+
+  const rows = parseCsv(await file.text());
+  let created = 0;
+  let updated = 0;
+  const errors: string[] = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    const lineNo = i + 2;
+    const genreId = (r.genreId ?? "").trim();
+    const name = (r.name ?? "").trim();
+    if (!genreId || !name) {
+      errors.push(`${lineNo}行目: genreId/nameが空です`);
+      continue;
+    }
+    const sortOrder = Number(r.sortOrder);
+    if (!Number.isFinite(sortOrder)) {
+      errors.push(`${lineNo}行目(${genreId}): sortOrderが数値ではありません`);
+      continue;
+    }
+    const data = { name, sortOrder, isActive: parseCsvBool(r.isActive) };
+    const existing = await prisma.genre.findUnique({ where: { genreId } });
+    if (existing) {
+      await prisma.genre.update({ where: { genreId }, data });
+      updated++;
+    } else {
+      await prisma.genre.create({ data: { genreId, ...data } });
+      created++;
+    }
+  }
+
+  revalidatePath("/admin/flow");
+  revalidatePath("/diagnosis");
+  const params = new URLSearchParams({ csvTarget: "genres", csvCreated: String(created), csvUpdated: String(updated) });
+  if (errors.length > 0) params.set("csvErrors", errors.slice(0, 15).join(" / "));
+  redirect(`/admin/flow?${params.toString()}`);
+}
+
+// v11追加: 診断フロー管理のCSV入出力(症状カテゴリ)。categoryIdをキーに新規追加・上書きする。
+// 新規行(未知のcategoryId)は、既存のcreateCategoryActionと同様に空のGeneralKnowledgeも合わせて作成する。
+export async function importCategoriesCsvAction(formData: FormData) {
+  await assertRole("editor");
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) {
+    redirect("/admin/flow?csvTarget=categories&csvError=missing_file");
+  }
+
+  const rows = parseCsv(await file.text());
+  let created = 0;
+  let updated = 0;
+  const errors: string[] = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    const lineNo = i + 2;
+    const categoryId = (r.categoryId ?? "").trim();
+    const genreId = (r.genreId ?? "").trim();
+    const name = (r.name ?? "").trim();
+    if (!categoryId || !genreId || !name) {
+      errors.push(`${lineNo}行目: categoryId/genreId/nameが空です`);
+      continue;
+    }
+    const sortOrder = Number(r.sortOrder);
+    if (!Number.isFinite(sortOrder)) {
+      errors.push(`${lineNo}行目(${categoryId}): sortOrderが数値ではありません`);
+      continue;
+    }
+    const genreExists = await prisma.genre.findUnique({ where: { genreId } });
+    if (!genreExists) {
+      errors.push(`${lineNo}行目(${categoryId}): genreId「${genreId}」が存在しません`);
+      continue;
+    }
+    const data = {
+      genreId,
+      name,
+      sortOrder,
+      isActive: parseCsvBool(r.isActive),
+      lineUrlOverride: r.lineUrlOverride?.trim() || null,
+      lineMessageOverride: r.lineMessageOverride?.trim() || null,
+    };
+    const existing = await prisma.concernCategory.findUnique({ where: { categoryId } });
+    if (existing) {
+      await prisma.concernCategory.update({ where: { categoryId }, data });
+      updated++;
+    } else {
+      await prisma.concernCategory.create({ data: { categoryId, ...data } });
+      await prisma.generalKnowledge.create({ data: { categoryId, contentText: "", isSourceVerified: false } });
+      created++;
+    }
+  }
+
+  revalidatePath("/admin/flow");
+  revalidatePath("/diagnosis");
+  const params = new URLSearchParams({ csvTarget: "categories", csvCreated: String(created), csvUpdated: String(updated) });
+  if (errors.length > 0) params.set("csvErrors", errors.slice(0, 15).join(" / "));
+  redirect(`/admin/flow?${params.toString()}`);
 }

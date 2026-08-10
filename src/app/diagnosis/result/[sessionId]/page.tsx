@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { backgroundStyleFor } from "@/lib/background";
 import { prisma } from "@/lib/prisma";
 import { checkResultSessionStatus, getDiagnosisResult } from "@/lib/diagnosis";
+import { categoryStyleFor } from "@/lib/product-categories";
 import { isPreviewMode } from "@/lib/preview";
 import { getContentMap } from "@/lib/site-content";
 import { LineCta } from "../LineCta";
@@ -17,6 +18,7 @@ const CONTENT_KEYS = [
   "result.support_label",
   "result.support_empty",
   "result.care_steps_heading",
+  "result.related_articles_heading",
   "result.cta_intro",
   "result.back_to_top",
   "result.background_image_url",
@@ -129,8 +131,10 @@ export default async function DiagnosisResultPage(props: PageProps<"/diagnosis/r
                       <div>
                         <p className="mb-3 text-xs font-semibold text-zinc-400">{c["result.support_label"] ?? "それを補完するアイテム"}</p>
                         <div className="space-y-3">
-                          {block.products.map((p) => (
-                            <div key={p.productId} className="rounded-xl border border-zinc-100 p-3">
+                          {block.products.map((p) => {
+                            const style = categoryStyleFor(p.category);
+                            return (
+                            <div key={p.productId} className={`rounded-xl border-2 p-3 ${style.border}`}>
                               <a
                                 href={p.productUrl}
                                 target="_blank"
@@ -138,7 +142,10 @@ export default async function DiagnosisResultPage(props: PageProps<"/diagnosis/r
                                 className="flex items-center justify-between gap-3 transition-colors hover:opacity-80"
                               >
                                 <div>
-                                  <div className="mb-1 flex items-center gap-2">
+                                  <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${style.badge}`}>
+                                      {p.category}
+                                    </span>
                                     <p className="text-sm font-semibold text-zinc-800">{p.nameJp}</p>
                                     {p.hasAntiWrinkleTest && (
                                       <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
@@ -166,7 +173,8 @@ export default async function DiagnosisResultPage(props: PageProps<"/diagnosis/r
                                 </p>
                               )}
                             </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     ) : (
@@ -198,6 +206,27 @@ export default async function DiagnosisResultPage(props: PageProps<"/diagnosis/r
                 </li>
               ))}
             </ol>
+          </section>
+        )}
+
+        {/* 関連記事(v11追加、お手入れステップとLINEリンクの間) */}
+        {result.relatedArticles.length > 0 && (
+          <section className="mb-10">
+            <h2 className="mb-4 text-base font-bold text-zinc-900">{c["result.related_articles_heading"] ?? "関連記事"}</h2>
+            <div className="space-y-2">
+              {result.relatedArticles.map((a) => (
+                <a
+                  key={a.id}
+                  href={a.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-between gap-3 rounded-xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 transition-colors hover:ring-rose-200"
+                >
+                  <span className="text-sm font-medium text-zinc-800">{a.title}</span>
+                  <span className="shrink-0 text-xs font-medium text-rose-600">読む</span>
+                </a>
+              ))}
+            </div>
           </section>
         )}
 
